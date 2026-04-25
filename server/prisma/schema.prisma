@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Auth ──────────────────────────────────────────────────────────────────────
+model User {
+  id        String   @id
+  email     String   @unique
+  role      Role     @default(STUDENT)
+  createdAt DateTime @default(now())
+
+  taughtClasses Class[]          @relation("TeacherClasses")
+  enrollments   Enrollment[]
+  profile       LearnerProfile?
+  audioCache    AudioCache[]
+}
+
+enum Role {
+  TEACHER
+  STUDENT
+  ADMIN
+}
+
+// ─── Classes ──────────────────────────────────────────────────────────────────
+model Class {
+  id          String   @id @default(cuid())
+  name        String
+  joinCode    String   @unique @default(cuid())
+  teacherId   String
+  teacher     User     @relation("TeacherClasses", fields: [teacherId], references: [id])
+  createdAt   DateTime @default(now())
+
+  lessons     Lesson[]
+  enrollments Enrollment[]
+}
+
+model Enrollment {
+  id       String   @id @default(cuid())
+  userId   String
+  classId  String
+  user     User     @relation(fields: [userId], references: [id])
+  class    Class    @relation(fields: [classId], references: [id])
+  joinedAt DateTime @default(now())
+
+  @@unique([userId, classId])
+}
+
+// ─── Lessons ──────────────────────────────────────────────────────────────────
+model Lesson {
+  id           String       @id @default(cuid())
+  classId      String
+  class        Class        @relation(fields: [classId], references: [id])
+  standard     String
+  title        String
+  status       LessonStatus @default(GENERATING)
+
+  foundational Json?
+  gradeLevel   Json?
+  advanced     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  audioCache       AudioCache[]
+  translationCache TranslationCache[]
+}
+
+enum LessonStatus {
+  GENERATING
+  READY
+  FAILED
+  ARCHIVED
+}
+
+// ─── Learner Profile ──────────────────────────────────────────────────────────
+model LearnerProfile {
+  id            String        @id @default(cuid())
+  userId        String        @unique
+  user          User          @relation(fields: [userId], references: [id])
+
+  readingLevel  ReadingLevel  @default(GRADE_LEVEL)
+  language      String        @default("en")
+  bandwidthMode BandwidthMode @default(FULL)
+  fontSize      FontSize      @default(MEDIUM)
+  highContrast  Boolean       @default(false)
+  dyslexiaFont  Boolean       @default(false)
+  ttsEnabled    Boolean       @default(false)
+  ttsProvider   TtsProvider   @default(WEB_SPEECH)
+
+  updatedAt DateTime @updatedAt
+}
+
+enum ReadingLevel {
+  FOUNDATIONAL
+  GRADE_LEVEL
+  ADVANCED
+}
+
+enum BandwidthMode {
+  FULL
+  REDUCED
+  TEXT_ONLY
+}
+
+enum FontSize {
+  SMALL
+  MEDIUM
+  LARGE
+  XLARGE
+}
+
+enum TtsProvider {
+  ELEVENLABS
+  WEB_SPEECH
+}
+
+// ─── Caches ───────────────────────────────────────────────────────────────────
+model AudioCache {
+  id         String       @id @default(cuid())
+  lessonId   String
+  lesson     Lesson       @relation(fields: [lessonId], references: [id])
+  userId     String
+  user       User         @relation(fields: [userId], references: [id])
+  level      ReadingLevel
+  language   String
+  storageKey String
+  durationMs Int?
+  createdAt  DateTime     @default(now())
+
+  @@unique([lessonId, level, language])
+}
+
+model TranslationCache {
+  id         String       @id @default(cuid())
+  lessonId   String
+  lesson     Lesson       @relation(fields: [lessonId], references: [id])
+  level      ReadingLevel
+  targetLang String
+  content    Json
+  createdAt  DateTime     @default(now())
+
+  @@unique([lessonId, level, targetLang])
+}
