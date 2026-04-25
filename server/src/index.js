@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 const { clerk } = require('./middleware/auth');
 const prisma = require('./lib/prisma');
@@ -38,6 +39,8 @@ app.get('/api/health', (req, res) => {
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use('/api/lessons', require('./routes/lessons'));
+app.use('/api/lessonforge', generateLimiter, require('./routes/lessonforge'));
+app.use('/api/equity', generateLimiter, require('./routes/equity'));
 app.use('/api/adapt', require('./routes/adapt'));
 app.use('/api/translate', translateLimiter, require('./routes/translate'));
 app.use('/api/profile', require('./routes/profile'));

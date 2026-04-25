@@ -11,25 +11,29 @@ export default function App() {
     <div className="app-shell">
       <header className="app-topbar">
         <Link to="/" className="brand-title">
-          🔥 Bonfire
+          EduForge
         </Link>
 
         <nav>
-          <NavLink to="/dashboard">Dashboard</NavLink>
-          <NavLink to="/assignment">Assignment</NavLink>
-          <NavLink to="/exam-focus">Exam Focus</NavLink>
-          <NavLink to="/study-mode">Study Mode</NavLink>
-          <NavLink to="/progress">Progress</NavLink>
+          <NavLink to="/dashboard">Teacher Dashboard</NavLink>
+          <NavLink to="/lesson-planner">Lesson Planner</NavLink>
+          <NavLink to="/diagnostic">Diagnostic</NavLink>
+          <NavLink to="/adapt-studio">Adapt Studio</NavLink>
+          <NavLink to="/progress">Growth Tracker</NavLink>
         </nav>
       </header>
 
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/lesson-planner" element={<AssignmentBreakdown />} />
+        <Route path="/diagnostic" element={<ExamFocus />} />
+        <Route path="/adapt-studio" element={<StudyMode />} />
+        <Route path="/progress" element={<BonfireProgress />} />
+
         <Route path="/assignment" element={<AssignmentBreakdown />} />
         <Route path="/exam-focus" element={<ExamFocus />} />
         <Route path="/study-mode" element={<StudyMode />} />
-        <Route path="/progress" element={<BonfireProgress />} />
       </Routes>
     </div>
   )
