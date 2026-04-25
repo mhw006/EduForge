@@ -1,8 +1,6 @@
 const axios = require('axios');
-const { PrismaClient } = require('@prisma/client');
+const { prisma } = require('../db');
 const { uploadToR2, getPublicUrl } = require('./storage');
-
-const prisma = new PrismaClient();
 
 function buildTtsScript(content) {
   return [content.overview, content.mainContent]
