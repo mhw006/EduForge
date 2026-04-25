@@ -1,11 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 // ─── Auth ──────────────────────────────────────────────────────────────────────
@@ -15,10 +14,12 @@ model User {
   role      Role     @default(STUDENT)
   createdAt DateTime @default(now())
 
-  taughtClasses Class[]          @relation("TeacherClasses")
-  enrollments   Enrollment[]
-  profile       LearnerProfile?
-  audioCache    AudioCache[]
+  taughtClasses    Class[]            @relation("TeacherClasses")
+  enrollments      Enrollment[]
+  profile          LearnerProfile?
+  audioCache       AudioCache[]
+  quizAttempts     QuizAttempt[]
+  engagementEvents EngagementEvent[]
 }
 
 enum Role {
@@ -29,12 +30,12 @@ enum Role {
 
 // ─── Classes ──────────────────────────────────────────────────────────────────
 model Class {
-  id          String   @id @default(cuid())
-  name        String
-  joinCode    String   @unique @default(cuid())
-  teacherId   String
-  teacher     User     @relation("TeacherClasses", fields: [teacherId], references: [id])
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  name      String
+  joinCode  String   @unique @default(cuid())
+  teacherId String
+  teacher   User     @relation("TeacherClasses", fields: [teacherId], references: [id])
+  createdAt DateTime @default(now())
 
   lessons     Lesson[]
   enrollments Enrollment[]
@@ -53,12 +54,12 @@ model Enrollment {
 
 // ─── Lessons ──────────────────────────────────────────────────────────────────
 model Lesson {
-  id           String       @id @default(cuid())
-  classId      String
-  class        Class        @relation(fields: [classId], references: [id])
-  standard     String
-  title        String
-  status       LessonStatus @default(GENERATING)
+  id       String       @id @default(cuid())
+  classId  String
+  class    Class        @relation(fields: [classId], references: [id])
+  standard String
+  title    String       @default("Untitled Lesson")
+  status   LessonStatus @default(GENERATING)
 
   foundational Json?
   gradeLevel   Json?
@@ -69,6 +70,8 @@ model Lesson {
 
   audioCache       AudioCache[]
   translationCache TranslationCache[]
+  quizAttempts     QuizAttempt[]
+  engagementEvents EngagementEvent[]
 }
 
 enum LessonStatus {
@@ -80,9 +83,9 @@ enum LessonStatus {
 
 // ─── Learner Profile ──────────────────────────────────────────────────────────
 model LearnerProfile {
-  id            String        @id @default(cuid())
-  userId        String        @unique
-  user          User          @relation(fields: [userId], references: [id])
+  id           String        @id @default(cuid())
+  userId       String        @unique
+  user         User          @relation(fields: [userId], references: [id])
 
   readingLevel  ReadingLevel  @default(GRADE_LEVEL)
   language      String        @default("en")
@@ -118,6 +121,49 @@ enum FontSize {
 enum TtsProvider {
   ELEVENLABS
   WEB_SPEECH
+}
+
+// ─── Quiz Attempts ────────────────────────────────────────────────────────────
+model QuizAttempt {
+  id             String       @id @default(cuid())
+  lessonId       String
+  lesson         Lesson       @relation(fields: [lessonId], references: [id])
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  level          ReadingLevel
+  score          Int
+  totalQuestions Int
+  answers        Json
+  createdAt      DateTime     @default(now())
+
+  @@index([lessonId])
+  @@index([userId])
+}
+
+// ─── Engagement Events ────────────────────────────────────────────────────────
+model EngagementEvent {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id])
+  lessonId  String
+  lesson    Lesson         @relation(fields: [lessonId], references: [id])
+  eventType EngagementType
+  metadata  Json?
+  createdAt DateTime       @default(now())
+
+  @@index([lessonId])
+  @@index([userId])
+  @@index([eventType])
+}
+
+enum EngagementType {
+  VIEW
+  QUIZ_START
+  QUIZ_COMPLETE
+  LANGUAGE_TOGGLE
+  TTS_TOGGLE
+  BANDWIDTH_CHANGE
+  EXPORT_PDF
 }
 
 // ─── Caches ───────────────────────────────────────────────────────────────────
