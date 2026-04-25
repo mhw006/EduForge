@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { generateExamStudyPlan } from '../services/aiClient'
 
 const defaultTopics = [
-  { name: 'Deadlocks', confidence: 2 },
-  { name: 'CPU Scheduling', confidence: 3 },
-  { name: 'Memory Management', confidence: 4 },
+  { name: 'Reading Comprehension', confidence: 2 },
+  { name: 'Numeracy and Computation', confidence: 3 },
+  { name: 'Academic Vocabulary', confidence: 4 },
 ]
 
 export default function ExamFocus() {
@@ -42,37 +42,37 @@ export default function ExamFocus() {
   return (
     <main className="page-wrap narrow">
       <header className="page-header single">
-        <h1>Exam Focus</h1>
-        <p>Generate a topic-priority study schedule from confidence ratings.</p>
+        <h1>Diagnostic Planner</h1>
+        <p>Build a fast diagnostic test plan to identify starting levels and support needs.</p>
       </header>
 
       <section className="bf-card">
         <form className="form-grid" onSubmit={submit}>
           <label>
-            Exam name
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Data Structures Midterm" required />
+            Diagnostic name
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Beginning of Term Literacy Check" required />
           </label>
 
           <label>
-            Exam date
+            Diagnostic date
             <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} required />
           </label>
 
           <div className="full-width">
             <div className="stack-header">
-              <h3>Topics + confidence</h3>
-              <button className="bf-btn ghost" type="button" onClick={addTopic}>Add Topic</button>
+              <h3>Skills to assess + current confidence</h3>
+              <button className="bf-btn ghost" type="button" onClick={addTopic}>Add Skill</button>
             </div>
             <div className="topic-grid">
               {topics.map((topic, index) => (
                 <div className="topic-row" key={`${index}-${topic.name}`}>
                   <input
                     value={topic.name}
-                    placeholder="Topic"
+                    placeholder="Skill domain"
                     onChange={(e) => updateTopic(index, 'name', e.target.value)}
                   />
                   <label>
-                    Confidence: {topic.confidence}
+                    Teacher confidence: {topic.confidence}
                     <input
                       type="range"
                       min="1"
@@ -87,27 +87,27 @@ export default function ExamFocus() {
           </div>
 
           <button className="bf-btn" type="submit" disabled={loading}>
-            {loading ? 'Generating...' : 'Generate Focus Plan'}
+            {loading ? 'Generating...' : 'Generate Diagnostic Plan'}
           </button>
         </form>
       </section>
 
       {plan ? (
         <section className="bf-card">
-          <h2>{plan.examName} Study Plan</h2>
+          <h2>{plan.examName} Diagnostic Plan</h2>
 
-          <h3>Daily schedule</h3>
+          <h3>Assessment rollout schedule</h3>
           <ul className="item-list compact">
             {plan.dailySchedule.map((day) => (
               <li key={`${day.day}-${day.focus}`}>
                 <strong>{day.day}</strong>
                 <span>{day.focus}</span>
-                <small>{day.minutes} min</small>
+                <small>{day.minutes} min block</small>
               </li>
             ))}
           </ul>
 
-          <h3>Topic priority + mode</h3>
+          <h3>Priority skills + recommended support mode</h3>
           <ul className="item-list compact">
             {plan.topicPriority.map((topic) => (
               <li key={topic.topic}>

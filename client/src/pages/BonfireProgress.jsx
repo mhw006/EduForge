@@ -9,10 +9,10 @@ export default function BonfireProgress() {
   })
 
   const focusLevel = useMemo(() => {
-    if (progress.fuelPoints > 300) return 'Wildfire Momentum'
-    if (progress.fuelPoints > 220) return 'Blazing'
-    if (progress.fuelPoints > 120) return 'Steady Flame'
-    return 'Kindled'
+    if (progress.fuelPoints > 300) return 'High Growth Momentum'
+    if (progress.fuelPoints > 220) return 'On Track'
+    if (progress.fuelPoints > 120) return 'Needs Reinforcement'
+    return 'Intervention Recommended'
   }, [progress.fuelPoints])
 
   function completeTask() {
@@ -38,8 +38,8 @@ export default function BonfireProgress() {
   return (
     <main className="page-wrap narrow">
       <header className="page-header single">
-        <h1>Bonfire Progress</h1>
-        <p>Your flame can dim, but it never fully goes out.</p>
+        <h1>Student Growth Tracker</h1>
+        <p>Track momentum over time without punitive resets for off days.</p>
       </header>
 
       <section className="bf-card">
@@ -47,13 +47,13 @@ export default function BonfireProgress() {
 
         <div className="progress-controls">
           <button className="bf-btn" type="button" onClick={completeTask}>
-            Complete Task (+12 fuel)
+            Mark Learning Task Complete (+12)
           </button>
           <button className="bf-btn" type="button" onClick={completeSession}>
-            Complete Study Session (+20 fuel)
+            Mark Guided Session Complete (+20)
           </button>
           <button className="bf-btn ghost" type="button" onClick={missDay}>
-            Miss Day (dim slightly)
+            Missed Day (small decay only)
           </button>
         </div>
 

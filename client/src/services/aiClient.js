@@ -52,3 +52,25 @@ export async function recommendNextFocusTask(userProgress) {
 
   return handleResponse(response)
 }
+
+// ─── LessonForge ─────────────────────────────────────────────────────────────
+
+export async function generateLessonPlan({ standard, gradeLevel, subject, description }) {
+  const response = await fetch(`${API_BASE}/lessonforge/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ standard, gradeLevel, subject, description }),
+  })
+  return handleResponse(response)
+}
+
+// ─── EduEquity ───────────────────────────────────────────────────────────────
+
+export async function adaptContent(topic, profile) {
+  const response = await fetch(`${API_BASE}/equity/adapt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic, profile }),
+  })
+  return handleResponse(response)
+}

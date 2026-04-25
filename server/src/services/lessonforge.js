@@ -1,7 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = process.env.LESSONFORGE_MODEL || 'claude-opus-4-7';
+const MODEL = 'claude-sonnet-4-5-20250929';
 
 function buildSystemPrompt() {
   return `You are an expert curriculum designer and special education specialist.
@@ -134,4 +134,26 @@ function generateLessonStream(standard, gradeLevel, subject, onChunk, onComplete
   }
 }
 
-module.exports = { generateLessonStream };
+// ─── Non-streaming promise-based version ─────────────────────────────────────
+async function generateLesson(standard, gradeLevel, subject) {
+  const message = await client.messages.create({
+    model: MODEL,
+    max_tokens: 8192,
+    system: buildSystemPrompt(),
+    messages: [{ role: 'user', content: buildUserPrompt(standard, gradeLevel, subject) }],
+  });
+
+  const rawContent = message.content[0].text;
+  const cleaned = rawContent.replace(/```json\n?|\n?```/g, '').trim();
+  const parsed = JSON.parse(cleaned);
+
+  const required = ['title', 'foundational', 'gradeLevel', 'advanced'];
+  const missing = required.filter((k) => !parsed[k]);
+  if (missing.length > 0) {
+    throw new Error(`Missing required keys: ${missing.join(', ')}`);
+  }
+
+  return parsed;
+}
+
+module.exports = { generateLessonStream, generateLesson };

@@ -5,6 +5,17 @@ import BonfireWidget from '../components/BonfireWidget'
 import TaskChecklist from '../components/TaskChecklist'
 import { getDashboardData, recommendNextFocusTask } from '../services/aiClient'
 
+const curriculumQueue = [
+  { id: 'c1', title: 'Week 4 Algebra Slides', source: 'Google Classroom import', status: 'Ready to transform' },
+  { id: 'c2', title: 'Cell Biology Lab Notes', source: 'Teacher upload', status: 'Needs language scaffolds' },
+]
+
+const accessibilityCoverage = [
+  { id: 'ac1', group: 'Multilingual learners', coverage: '4/6 lessons adapted this week' },
+  { id: 'ac2', group: 'IEP / 504 supports', coverage: '3/6 lessons adapted this week' },
+  { id: 'ac3', group: 'Foundational level students', coverage: '5/6 lessons adapted this week' },
+]
+
 export default function Dashboard() {
   const [data, setData] = useState(null)
   const [recommendation, setRecommendation] = useState(null)
@@ -58,56 +69,79 @@ export default function Dashboard() {
     <main className="page-wrap">
       <header className="page-header">
         <div>
-          <h1>Student Dashboard</h1>
-          <p>Welcome back, {data?.studentName || 'student'}. Keep your focus fire burning.</p>
+          <h1>Teacher Dashboard</h1>
+          <p>Welcome back, {data?.studentName || 'teacher'}. Plan, differentiate, and monitor student growth.</p>
         </div>
 
         <div className="header-actions">
-          <Link className="bf-btn" to="/assignment">
-            Add Assignment
+          <Link className="bf-btn" to="/lesson-planner">
+            Upload Lesson Plan
           </Link>
-          <Link className="bf-btn" to="/exam-focus">
-            Add Exam
+          <Link className="bf-btn" to="/diagnostic">
+            Create Diagnostic
           </Link>
-          <Link className="bf-btn ghost" to="/study-mode">
-            Start Focus Mode
+          <Link className="bf-btn ghost" to="/adapt-studio">
+            Open Adapt Studio
           </Link>
         </div>
       </header>
 
       <section className="dashboard-grid">
-        <DashboardCard title="Upcoming Assignments">
+        <DashboardCard title="Upcoming Lesson Deliverables">
           <ul className="item-list">
             {(data?.upcomingAssignments || []).map((item) => (
               <li key={item.id}>
                 <strong>{item.title}</strong>
                 <span>{item.course}</span>
-                <small>Due {item.dueDate}</small>
+                <small>Prep by {item.dueDate}</small>
               </li>
             ))}
           </ul>
         </DashboardCard>
 
-        <DashboardCard title="Upcoming Exams">
+        <DashboardCard title="Planned Assessments">
           <ul className="item-list">
             {(data?.upcomingExams || []).map((item) => (
               <li key={item.id}>
                 <strong>{item.name}</strong>
                 <span>{item.course}</span>
-                <small>{item.examDate}</small>
+                <small>Assessment date {item.examDate}</small>
               </li>
             ))}
           </ul>
         </DashboardCard>
 
         <DashboardCard
-          title="Today's Focus Tasks"
+          title="Today's Teacher Actions"
           action={<small>{completed}/{taskState.length} completed</small>}
         >
           <TaskChecklist tasks={taskState} onToggle={toggleTask} />
         </DashboardCard>
 
-        <DashboardCard title="Bonfire Progress">
+        <DashboardCard title="Curriculum Upload Queue">
+          <ul className="item-list compact">
+            {curriculumQueue.map((item) => (
+              <li key={item.id}>
+                <strong>{item.title}</strong>
+                <span>{item.source}</span>
+                <small>{item.status}</small>
+              </li>
+            ))}
+          </ul>
+        </DashboardCard>
+
+        <DashboardCard title="Accessibility Coverage">
+          <ul className="item-list compact">
+            {accessibilityCoverage.map((item) => (
+              <li key={item.id}>
+                <strong>{item.group}</strong>
+                <small>{item.coverage}</small>
+              </li>
+            ))}
+          </ul>
+        </DashboardCard>
+
+        <DashboardCard title="Class Learning Momentum">
           <BonfireWidget
             progress={{
               fuelPoints: (data?.progress?.fuelPoints || 0) + completed * 10,
@@ -115,15 +149,15 @@ export default function Dashboard() {
               missedDays: 0,
             }}
           />
-          <Link className="text-link" to="/progress">View full progress</Link>
+          <Link className="text-link" to="/progress">View growth tracker</Link>
         </DashboardCard>
       </section>
 
       {recommendation ? (
         <section className="bf-card recommendation-strip">
-          <h3>Recommended Next Focus Task</h3>
+          <h3>Recommended Next Teacher Action</h3>
           <p>{recommendation.recommendation}</p>
-          <span>Suggested mode: {recommendation.mode}</span>
+          <span>Suggested support mode: {recommendation.mode}</span>
         </section>
       ) : null}
     </main>
