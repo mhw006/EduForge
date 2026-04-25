@@ -1,12 +1,12 @@
 const express = require('express');
 const Anthropic = require('@anthropic-ai/sdk');
-const { prisma } = require('../db');
+const prisma = require('../lib/prisma');
 const { requireAuth, requireTeacher } = require('../middleware/auth');
-
+const { adaptContent } = require('../middleware/adapt');
 const router = express.Router();
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const MODEL = process.env.LESSONFORGE_MODEL || 'claude-opus-4-7';
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const MODEL = process.env.LESSONFORGE_MODEL || 'claude-sonnet-4-20250514';
 
 function buildSystemPrompt() {
   return `You are an expert curriculum designer and special education specialist.
@@ -16,15 +16,14 @@ CRITICAL OUTPUT RULES:
 1. Respond ONLY with a valid JSON object. No markdown, no prose, no code fences.
 2. Never truncate. Complete all three levels fully before ending your response.
 3. Each level must be pedagogically appropriate — not just shorter/longer.
-4. The 'foundational' level must use Lexile 400L–600L language (concrete nouns, short sentences, no jargon).
-5. The 'gradeLevel' level must use Lexile 700L–900L language (grade-appropriate vocabulary, some abstract concepts).
-6. The 'advanced' level must use Lexile 1000L–1200L language (Socratic questions, synthesis tasks, domain vocabulary).
-7. keyVocabulary must be specific words from YOUR generated content, not generic.
-8. Each quiz must have exactly 5 questions with 4 multiple-choice options each.`;
+4. The 'foundational' level must use Lexile 400L-600L language.
+5. The 'gradeLevel' level must use Lexile 700L-900L language.
+6. The 'advanced' level must use Lexile 1000L-1200L language.
+7. Each quiz must have exactly 5 questions with 4 multiple-choice options each.`;
 }
 
 function buildUserPrompt(standard, gradeLevel, subject) {
-  return `Generate a complete differentiated lesson for the following curriculum standard:
+  return `Generate a complete differentiated lesson for:
 
 STANDARD: "${standard}"
 GRADE LEVEL: ${gradeLevel}
@@ -32,38 +31,26 @@ SUBJECT: ${subject}
 
 Return a JSON object with EXACTLY this structure:
 {
-  "title": "string — lesson title",
+  "title": "string",
   "subject": "string",
   "gradeLevel": "string",
-  "standard": "string — the original standard",
+  "standard": "string",
   "estimatedMinutes": number,
-
   "foundational": {
     "levelLabel": "Foundational",
     "lexileRange": "400L-600L",
-    "overview": "string — 2-3 sentences introducing the topic simply",
-    "keyVocabulary": [
-      { "term": "string", "definition": "string — child-friendly, one sentence" }
-    ],
-    "mainContent": "string — 4-6 paragraphs, short sentences, no abstract concepts",
-    "activities": [
-      { "title": "string", "instructions": "string", "estimatedMinutes": number }
-    ],
-    "quiz": [
-      {
-        "question": "string",
-        "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
-        "correctAnswer": "A",
-        "explanation": "string"
-      }
-    ]
+    "overview": "string",
+    "keyVocabulary": [{ "term": "string", "definition": "string" }],
+    "mainContent": "string",
+    "activities": [{ "title": "string", "instructions": "string", "estimatedMinutes": number }],
+    "quiz": [{ "question": "string", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correctAnswer": "A", "explanation": "string" }]
   },
-  "gradeLevel": { /* identical structure */ },
-  "advanced":   { /* identical structure */ }
+  "gradeLevel": { },
+  "advanced": { }
 }`;
 }
 
-// POST /api/lessons — Create lesson record, return ID for SSE streaming
+// ─── POST /api/lessons — Create lesson record, return ID ─────────────────────
 router.post('/', requireTeacher, async (req, res) => {
   const { classId, standard } = req.body;
 
@@ -71,8 +58,12 @@ router.post('/', requireTeacher, async (req, res) => {
     return res.status(400).json({ error: 'classId and standard are required' });
   }
 
+  if (standard.length > 2000) {
+    return res.status(400).json({ error: 'Standard text must be under 2000 characters' });
+  }
+
   const cls = await prisma.class.findFirst({
-    where: { id: classId, teacherId: req.user.id },
+    where: { id: classId, teacherId: req.auth?.userId || req.user?.id },
   });
   if (!cls) return res.status(403).json({ error: 'Class not found or access denied' });
 
@@ -88,7 +79,7 @@ router.post('/', requireTeacher, async (req, res) => {
   res.status(202).json({ lessonId: lesson.id });
 });
 
-// GET /api/lessons/:id/stream — SSE endpoint streaming Claude output and saving on complete
+// ─── GET /api/lessons/:id/stream — SSE streaming ─────────────────────────────
 router.get('/:id/stream', requireTeacher, async (req, res) => {
   const lesson = await prisma.lesson.findUnique({ where: { id: req.params.id } });
   if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
@@ -105,6 +96,7 @@ router.get('/:id/stream', requireTeacher, async (req, res) => {
   };
 
   const keepAlive = setInterval(() => res.write(': ping\n\n'), 15000);
+  req.on('close', () => clearInterval(keepAlive));
 
   let fullContent = '';
 
@@ -113,16 +105,14 @@ router.get('/:id/stream', requireTeacher, async (req, res) => {
       model: MODEL,
       max_tokens: 8192,
       system: buildSystemPrompt(),
-      messages: [
-        {
-          role: 'user',
-          content: buildUserPrompt(
-            lesson.standard,
-            req.query.gradeLevel || '6',
-            req.query.subject || 'ELA'
-          ),
-        },
-      ],
+      messages: [{
+        role: 'user',
+        content: buildUserPrompt(
+          lesson.standard,
+          req.query.gradeLevel || '6',
+          req.query.subject || 'ELA'
+        ),
+      }],
     });
 
     stream.on('text', (text) => {
@@ -158,7 +148,7 @@ router.get('/:id/stream', requireTeacher, async (req, res) => {
         await prisma.lesson.update({
           where: { id: lesson.id },
           data: { status: 'FAILED' },
-        });
+        }).catch(() => {});
         sendEvent('error', { message: `Parse failed: ${parseErr.message}` });
         res.end();
       }
@@ -169,7 +159,7 @@ router.get('/:id/stream', requireTeacher, async (req, res) => {
       await prisma.lesson.update({
         where: { id: lesson.id },
         data: { status: 'FAILED' },
-      });
+      }).catch(() => {});
       sendEvent('error', { message: err.message });
       res.end();
     });
@@ -178,24 +168,67 @@ router.get('/:id/stream', requireTeacher, async (req, res) => {
     sendEvent('error', { message: err.message });
     res.end();
   }
-
-  req.on('close', () => clearInterval(keepAlive));
 });
 
-// GET /api/lessons/:id — Fetch a completed lesson
-router.get('/:id', requireAuth, async (req, res) => {
-  const lesson = await prisma.lesson.findUnique({ where: { id: req.params.id } });
-  if (!lesson) return res.status(404).json({ error: 'Not found' });
-  res.json(lesson);
-});
-
-// GET /api/lessons/class/:classId — All lessons in a class
+// ─── GET /api/lessons/class/:classId ─────────────────────────────────────────
 router.get('/class/:classId', requireAuth, async (req, res) => {
-  const lessons = await prisma.lesson.findMany({
-    where: { classId: req.params.classId },
-    orderBy: { createdAt: 'desc' },
-  });
-  res.json(lessons);
+  try {
+    const { classId } = req.params;
+    const userId = req.auth?.userId || req.user?.id;
+
+    const classRecord = await prisma.class.findUnique({ where: { id: classId } });
+    if (!classRecord) return res.status(404).json({ error: 'Class not found' });
+
+    const isTeacher = classRecord.teacherId === userId;
+    if (!isTeacher) {
+      const enrollment = await prisma.enrollment.findUnique({
+        where: { userId_classId: { userId, classId } },
+      });
+      if (!enrollment) return res.status(403).json({ error: 'Not enrolled in this class' });
+    }
+
+    const lessons = await prisma.lesson.findMany({
+      where: { classId, status: 'READY' },
+      select: { id: true, title: true, standard: true, status: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({ lessons });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/lessons/:id ─────────────────────────────────────────────────────
+router.get('/:id', requireAuth, adaptContent, async (req, res) => {
+  try {
+    if (req.adaptedContent) return res.json(req.adaptedContent);
+
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: req.params.id },
+      include: { class: { select: { teacherId: true } } },
+    });
+
+    if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+
+    const userId = req.auth?.userId || req.user?.id;
+    if (lesson.class.teacherId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    res.json({
+      id: lesson.id,
+      title: lesson.title,
+      standard: lesson.standard,
+      status: lesson.status,
+      foundational: lesson.foundational,
+      gradeLevel: lesson.gradeLevel,
+      advanced: lesson.advanced,
+      createdAt: lesson.createdAt,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const { clerk } = require('./middleware/auth');
@@ -7,8 +8,10 @@ const { clerk } = require('./middleware/auth');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// ─── Global middleware ───────────────────────────────────────────────────────
 app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+app.use(clerk);
 
 // Clerk session must run before any route that calls getAuth()
 app.use(clerk);
