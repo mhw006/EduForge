@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+require('dotenv').config();
+const { prisma } = require('../src/db');
 
 async function main() {
   const teacher = await prisma.user.upsert({
