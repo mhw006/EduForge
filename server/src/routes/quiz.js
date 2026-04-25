@@ -1,6 +1,6 @@
 const express = require('express');
-const prisma = require('../lib/prisma');
-const { protect } = require('../middleware/auth');
+const { prisma } = require('../db');
+const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 
 // Reading level → JSON field
@@ -11,27 +11,23 @@ const LEVEL_FIELD = {
 };
 
 // ─── POST /api/quiz/:lessonId/submit ─────────────────────────────────────────
-// Student submits quiz answers; server scores them
-router.post('/:lessonId/submit', protect, async (req, res) => {
+router.post('/:lessonId/submit', requireAuth, async (req, res) => {
   try {
     const { lessonId } = req.params;
     const { answers, level } = req.body;
-    const userId = req.auth.userId;
+    const userId = req.auth?.userId || req.user?.id;
 
-    // Validate
     if (!answers || !Array.isArray(answers)) {
       return res.status(400).json({ error: 'answers must be an array' });
     }
 
     const validLevel = level && LEVEL_FIELD[level] ? level : 'GRADE_LEVEL';
 
-    // Fetch lesson
     const lesson = await prisma.lesson.findUnique({ where: { id: lessonId } });
     if (!lesson || lesson.status !== 'READY') {
       return res.status(404).json({ error: 'Lesson not found or not ready' });
     }
 
-    // Get the quiz from the correct level
     const levelData = lesson[LEVEL_FIELD[validLevel]];
     if (!levelData || !levelData.quiz) {
       return res.status(400).json({ error: 'No quiz found for this level' });
@@ -40,43 +36,30 @@ router.post('/:lessonId/submit', protect, async (req, res) => {
     const quiz = levelData.quiz;
     const totalQuestions = quiz.length;
 
-    // Score the answers
     let score = 0;
     const results = quiz.map((question, i) => {
       const studentAnswer = answers[i] || null;
-      const correct = studentAnswer === question.answer;
+      // Handle both formats: correctAnswer (teammate) or answer (yours)
+      const correctAnswer = question.correctAnswer || question.answer;
+      const correct = studentAnswer === correctAnswer;
       if (correct) score++;
       return {
         question: question.question,
         studentAnswer,
-        correctAnswer: question.answer,
+        correctAnswer,
         correct,
       };
     });
 
-    // Log quiz start + completion events
     await prisma.engagementEvent.createMany({
       data: [
         { userId, lessonId, eventType: 'QUIZ_START', metadata: { level: validLevel } },
-        {
-          userId,
-          lessonId,
-          eventType: 'QUIZ_COMPLETE',
-          metadata: { level: validLevel, score, totalQuestions },
-        },
+        { userId, lessonId, eventType: 'QUIZ_COMPLETE', metadata: { level: validLevel, score, totalQuestions } },
       ],
     });
 
-    // Save the attempt
     const attempt = await prisma.quizAttempt.create({
-      data: {
-        lessonId,
-        userId,
-        level: validLevel,
-        score,
-        totalQuestions,
-        answers: results,
-      },
+      data: { lessonId, userId, level: validLevel, score, totalQuestions, answers: results },
     });
 
     res.json({
@@ -92,11 +75,10 @@ router.post('/:lessonId/submit', protect, async (req, res) => {
 });
 
 // ─── GET /api/quiz/:lessonId/attempts ────────────────────────────────────────
-// Get quiz attempts for a lesson (student sees own, teacher sees all)
-router.get('/:lessonId/attempts', protect, async (req, res) => {
+router.get('/:lessonId/attempts', requireAuth, async (req, res) => {
   try {
     const { lessonId } = req.params;
-    const userId = req.auth.userId;
+    const userId = req.auth?.userId || req.user?.id;
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
@@ -107,9 +89,7 @@ router.get('/:lessonId/attempts', protect, async (req, res) => {
 
     const attempts = await prisma.quizAttempt.findMany({
       where,
-      include: {
-        user: { select: { email: true } },
-      },
+      include: { user: { select: { email: true } } },
       orderBy: { createdAt: 'desc' },
     });
 
