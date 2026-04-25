@@ -1,7 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = 'claude-sonnet-4-5-20251001';
+const MODEL = 'claude-sonnet-4-5-20250929';
 
 function buildSystemPrompt() {
   return `You are an expert curriculum designer and special education specialist.

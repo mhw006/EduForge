@@ -1,7 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = 'claude-opus-4-5';
+const MODEL = 'claude-sonnet-4-5-20250929';
 
 /**
  * Adapts lesson content for a specific learner profile using Claude.
