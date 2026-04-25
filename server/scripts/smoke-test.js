@@ -30,10 +30,14 @@ async function check(name, fn) {
   }
 }
 
-async function http(method, url, body) {
+async function http(method, url, body, opts = {}) {
+  const headers = {};
+  if (body) headers['Content-Type'] = 'application/json';
+  if (opts.demo) headers['x-demo-user'] = opts.demo; // 'teacher' | 'student'
+
   const res = await fetch(BASE + url, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: Object.keys(headers).length ? headers : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -125,15 +129,15 @@ async function testEndpoints() {
     return `id=${smokeClass.id}`;
   });
 
-  await check('GET /api/classes/mine → 200', async () => {
-    const r = await http('GET', '/api/classes/mine');
+  await check('GET /api/classes → 200 (teacher list)', async () => {
+    const r = await http('GET', '/api/classes');
     if (r.status !== 200) throw new Error(`got ${r.status}`);
-    if (!Array.isArray(r.body)) throw new Error('expected array');
+    if (!Array.isArray(r.body?.classes)) throw new Error('expected { classes: [] }');
   });
 
   if (smokeClass) {
-    await check('POST /api/classes/join → 201', async () => {
-      const r = await http('POST', '/api/classes/join', { joinCode: smokeClass.joinCode });
+    await check('POST /api/classes/join (as student) → 201', async () => {
+      const r = await http('POST', '/api/classes/join', { joinCode: smokeClass.joinCode }, { demo: 'student' });
       if (r.status !== 201) throw new Error(`got ${r.status}: ${r.raw.slice(0, 80)}`);
     });
   }
@@ -144,7 +148,7 @@ async function testEndpoints() {
   });
 
   await check('POST /api/classes/join (bad code → 404)', async () => {
-    const r = await http('POST', '/api/classes/join', { joinCode: '__nonexistent__' });
+    const r = await http('POST', '/api/classes/join', { joinCode: '__nonexistent__' }, { demo: 'student' });
     if (r.status !== 404) throw new Error(`expected 404, got ${r.status}`);
   });
 
