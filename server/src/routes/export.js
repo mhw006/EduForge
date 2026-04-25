@@ -1,149 +1,171 @@
-const express = require('express');
-const PDFDocument = require('pdfkit');
-const prisma = require('../lib/prisma');
-const { protect, requireTeacher } = require('../middleware/auth');
-const router = express.Router();
+const { prisma } = require('../db');
+const { translateLesson } = require('../services/deepl');
 
-// ─── GET /api/export/:lessonId/pdf ───────────────────────────────────────────
-// Export a lesson as a formatted PDF download
-router.get('/:lessonId/pdf', protect, requireTeacher, async (req, res) => {
-  try {
-    const { lessonId } = req.params;
-    const { level } = req.query; // optional: foundational, gradeLevel, advanced
+/**
+ * Reading level → lesson JSON field mapping
+ */
+const LEVEL_MAP = {
+  FOUNDATIONAL: 'foundational',
+  GRADE_LEVEL: 'gradeLevel',
+  ADVANCED: 'advanced',
+};
 
-    const lesson = await prisma.lesson.findUnique({
-      where: { id: lessonId },
-      include: { class: { select: { teacherId: true, name: true } } },
-    });
+/**
+ * Strips media for reduced/text-only bandwidth modes.
+ * Mirrors the logic from eduequity.js so both adaptation paths behave the same.
+ */
+function applyBandwidthMode(content, bandwidthMode) {
+  if (bandwidthMode === 'FULL') return content;
 
-    if (!lesson || lesson.status !== 'READY') {
-      return res.status(404).json({ error: 'Lesson not found or not ready' });
+  const stripped = JSON.parse(JSON.stringify(content));
+
+  if (bandwidthMode === 'REDUCED' || bandwidthMode === 'TEXT_ONLY') {
+    if (stripped.mainContent) {
+      stripped.mainContent = stripped.mainContent
+        .replace(/!\[.*?\]\(.*?\)/g, '[Image removed for bandwidth]')
+        .replace(/<img[^>]+>/gi, '')
+        .replace(/https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg)/gi, '');
+    }
+    if (stripped.reading_passage) {
+      stripped.reading_passage = stripped.reading_passage
+        .replace(/!\[.*?\]\(.*?\)/g, '')
+        .replace(/<img[^>]+>/gi, '');
     }
 
-    if (lesson.class.teacherId !== req.auth.userId) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-
-    // Log the export event
-    await prisma.engagementEvent.create({
-      data: {
-        userId: req.auth.userId,
-        lessonId,
-        eventType: 'EXPORT_PDF',
-        metadata: { level: level || 'all' },
-      },
-    }).catch(() => {});
-
-    // Build the PDF
-    const doc = new PDFDocument({ margin: 50 });
-    const filename = `${lesson.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    doc.pipe(res);
-
-    // Title page
-    doc.fontSize(24).font('Helvetica-Bold').text(lesson.title, { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fontSize(12).font('Helvetica').text(`Class: ${lesson.class.name}`, { align: 'center' });
-    doc.fontSize(10).text(`Standard: ${lesson.standard}`, { align: 'center' });
-    doc.moveDown(1);
-    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#cccccc');
-    doc.moveDown(1);
-
-    // Determine which levels to include
-    const levels = level
-      ? [{ key: level, label: level.replace(/([A-Z])/g, ' $1').trim() }]
-      : [
-          { key: 'foundational', label: 'Foundational' },
-          { key: 'gradeLevel', label: 'Grade Level' },
-          { key: 'advanced', label: 'Advanced' },
-        ];
-
-    for (const { key, label } of levels) {
-      const data = lesson[key];
-      if (!data) continue;
-
-      // Level header
-      doc.fontSize(18).font('Helvetica-Bold').text(`${label} Level`, { underline: true });
-      doc.moveDown(0.5);
-
-      if (data.title) {
-        doc.fontSize(14).font('Helvetica-Bold').text(data.title);
-        doc.moveDown(0.3);
-      }
-
-      // Objectives
-      if (data.objectives?.length) {
-        doc.fontSize(12).font('Helvetica-Bold').text('Objectives:');
-        data.objectives.forEach((obj) => {
-          doc.fontSize(11).font('Helvetica').text(`  • ${obj}`);
-        });
-        doc.moveDown(0.5);
-      }
-
-      // Reading passage
-      if (data.reading_passage) {
-        doc.fontSize(12).font('Helvetica-Bold').text('Reading Passage:');
-        doc.fontSize(11).font('Helvetica').text(data.reading_passage, { lineGap: 2 });
-        doc.moveDown(0.5);
-      }
-
-      // Quiz
-      if (data.quiz?.length) {
-        doc.fontSize(12).font('Helvetica-Bold').text('Quiz:');
-        data.quiz.forEach((q, i) => {
-          doc.fontSize(11).font('Helvetica-Bold').text(`${i + 1}. ${q.question}`);
-          if (q.options) {
-            q.options.forEach((opt) => {
-              doc.fontSize(10).font('Helvetica').text(`    ${opt}`);
-            });
-          }
-          doc.fontSize(10).font('Helvetica-Oblique').text(`    Answer: ${q.answer}`);
-          doc.moveDown(0.2);
-        });
-        doc.moveDown(0.3);
-      }
-
-      // Discussion prompts
-      if (data.discussion_prompts?.length) {
-        doc.fontSize(12).font('Helvetica-Bold').text('Discussion Prompts:');
-        data.discussion_prompts.forEach((p) => {
-          doc.fontSize(11).font('Helvetica').text(`  • ${p}`);
-        });
-        doc.moveDown(0.5);
-      }
-
-      // Extension activities
-      if (data.extension_activities?.length) {
-        doc.fontSize(12).font('Helvetica-Bold').text('Extension Activities:');
-        data.extension_activities.forEach((a) => {
-          doc.fontSize(11).font('Helvetica').text(`  • ${a}`);
-        });
-        doc.moveDown(0.5);
-      }
-
-      // Separator between levels
-      doc.moveDown(0.5);
-      doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#eeeeee');
-      doc.moveDown(0.5);
-    }
-
-    // Footer
-    doc.fontSize(8).font('Helvetica').text(
-      `Generated by EduForge on ${new Date().toLocaleDateString()}`,
-      50,
-      doc.page.height - 50,
-      { align: 'center' }
-    );
-
-    doc.end();
-  } catch (err) {
-    // Only send JSON error if headers haven't been sent yet
-    if (!res.headersSent) {
-      res.status(500).json({ error: err.message });
+    if (stripped.activities) {
+      stripped.activities = stripped.activities.filter(
+        (a) =>
+          !a.instructions?.toLowerCase().includes('watch') &&
+          !a.instructions?.toLowerCase().includes('video')
+      );
     }
   }
-});
 
-module.exports = router;
+  if (bandwidthMode === 'TEXT_ONLY') {
+    delete stripped.imageUrl;
+    delete stripped.videoUrl;
+    stripped._textOnly = true;
+  }
+
+  return stripped;
+}
+
+/**
+ * Injects accessibility metadata for the frontend to consume.
+ */
+function injectAccessibilityMetadata(content, profile) {
+  return {
+    ...content,
+    _a11y: {
+      fontSize: profile.fontSize,
+      highContrast: profile.highContrast,
+      dyslexiaFont: profile.dyslexiaFont,
+      ttsEnabled: profile.ttsEnabled,
+      ttsProvider: profile.ttsProvider,
+      language: profile.language,
+    },
+  };
+}
+
+/**
+ * Adapts lesson content based on the student's LearnerProfile.
+ *
+ * Pipeline:
+ *   1. Select correct differentiation level
+ *   2. Translate if needed (with caching)
+ *   3. Strip media for bandwidth mode
+ *   4. Inject accessibility metadata
+ *   5. Log engagement event
+ *
+ * Attaches `req.adaptedContent` for the route handler to return.
+ */
+async function adaptContent(req, res, next) {
+  try {
+    const userId = req.auth?.userId || req.user?.id;
+    if (!userId) return next();
+
+    // Only adapt for students
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.role !== 'STUDENT') return next();
+
+    // Get or create learner profile
+    let profile = await prisma.learnerProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      profile = await prisma.learnerProfile.create({
+        data: { userId },
+      });
+    }
+
+    // Get the lesson from the route param
+    const lessonId = req.params.id || req.params.lessonId;
+    if (!lessonId) return next();
+
+    const lesson = await prisma.lesson.findUnique({ where: { id: lessonId } });
+    if (!lesson || lesson.status !== 'READY') return next();
+
+    // Step 1: Select the correct differentiation level
+    const levelField = LEVEL_MAP[profile.readingLevel] || 'gradeLevel';
+    let content = lesson[levelField] || lesson.gradeLevel;
+
+    // Step 2: Translate if needed
+    if (profile.language && profile.language !== 'en') {
+      try {
+        content = await translateLesson(
+          content,
+          lessonId,
+          profile.readingLevel,
+          profile.language
+        );
+      } catch (err) {
+        console.warn('Translation failed, serving English:', err.message);
+      }
+    }
+
+    // Step 3: Apply bandwidth mode
+    content = applyBandwidthMode(content, profile.bandwidthMode);
+
+    // Step 4: Inject accessibility metadata
+    content = injectAccessibilityMetadata(content, profile);
+
+    // Step 5: Log the view event
+    await prisma.engagementEvent
+      .create({
+        data: {
+          userId,
+          lessonId,
+          eventType: 'VIEW',
+          metadata: {
+            level: profile.readingLevel,
+            language: profile.language,
+            bandwidthMode: profile.bandwidthMode,
+          },
+        },
+      })
+      .catch((err) => console.warn('Event logging failed:', err.message));
+
+    // Attach adapted content to the request
+    req.adaptedContent = {
+      lessonId: lesson.id,
+      title: lesson.title,
+      standard: lesson.standard,
+      level: profile.readingLevel,
+      appliedProfile: {
+        readingLevel: profile.readingLevel,
+        language: profile.language,
+        bandwidthMode: profile.bandwidthMode,
+        ttsProvider: profile.ttsProvider,
+      },
+      content,
+    };
+
+    next();
+  } catch (err) {
+    console.error('Adaptation middleware error:', err);
+    next(err);
+  }
+}
+
+module.exports = { adaptContent };
