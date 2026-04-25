@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"require\\('./src/services/lessonforge'\\); console.log\\('lessonforge.js loaded OK'\\)\")",
+      "Bash(node -e \"require\\('./src/routes/lessons'\\); console.log\\('lessons.js loaded OK'\\)\")",
+      "Bash(timeout 8 npm run dev)"
+    ]
+  }
+}
