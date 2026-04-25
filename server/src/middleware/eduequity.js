@@ -1,7 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
+const { prisma } = require('../db');
 const { translateLesson } = require('../services/deepl');
-
-const prisma = new PrismaClient();
 
 function selectLevelContent(lesson, readingLevel) {
   const levelMap = {

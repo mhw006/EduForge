@@ -1,7 +1,5 @@
 const axios = require('axios');
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const { prisma } = require('../db');
 const DEEPL_API_URL = 'https://api-free.deepl.com/v2/translate';
 
 async function translateText(text, targetLang) {
