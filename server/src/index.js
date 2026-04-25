@@ -17,8 +17,10 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'EduForge server running' });
 });
 
-app.use('/api/lessons', require('./routes/lessons'));
-app.use('/api/adapt', require('./routes/adapt'));
+app.use('/api/lessons',  require('./routes/lessons'));
+app.use('/api/adapt',    require('./routes/adapt'));
+app.use('/api/profiles', require('./routes/profiles'));
+app.use('/api/classes',  require('./routes/classes'));
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
