@@ -233,12 +233,17 @@ function LessonRenderer({ lesson, profile }) {
     const text = `${decodeHtml(content.overview)}\n\n${decodeHtml(content.mainContent)}`
 
     const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = targetLang
 
     const langPrefix = targetLang.split('-')[0].toLowerCase()
     const voices = _voiceCache.voices.length > 0 ? _voiceCache.voices : (window.speechSynthesis?.getVoices() || [])
     const match = voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix))
-    if (match) utterance.voice = match
+    if (match) {
+      // Voice found for target language — use it with the correct locale.
+      utterance.voice = match
+      utterance.lang = match.lang
+    }
+    // If no matching voice is installed, leave utterance.lang unset so the
+    // browser uses its default voice instead of silently dropping the speech.
 
     utterance.onend = () => setSpeaking(false)
     utterance.onerror = () => setSpeaking(false)
