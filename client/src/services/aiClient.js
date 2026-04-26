@@ -87,46 +87,12 @@ export async function getTranslationLanguages(demoUser = 'student') {
   return handleResponse(response)
 }
 
-export async function generateAssignmentBreakdown(assignment) {
-  const response = await apiFetch('/assignment/breakdown', {
-    method: 'POST',
-    body: assignment,
-  })
-
-  return handleResponse(response)
-}
-
-export async function generateExamStudyPlan(exam) {
-  const response = await apiFetch('/exam/plan', {
-    method: 'POST',
-    body: exam,
-  })
-
-  return handleResponse(response)
-}
-
-export async function generateStudyModes(topic) {
-  const response = await apiFetch('/study/modes', {
-    method: 'POST',
-    body: { topic },
-  })
-
-  return handleResponse(response)
-}
-
-export async function recommendNextFocusTask(userProgress) {
-  try {
-    const response = await apiFetch('/focus/recommend', {
-      method: 'POST',
-      body: userProgress,
-    })
-
-    return handleResponse(response)
-  } catch {
-    return {
-      recommendation: 'Demo the student adaptation loop: switch language, reading level, and bandwidth mode on the same lesson.',
-      mode: 'EduEquity',
-    }
+// recommendNextFocusTask: returns a static suggestion for the dashboard.
+// The original /focus/recommend endpoint never existed; this avoids the round-trip + 404.
+export async function recommendNextFocusTask() {
+  return {
+    recommendation: 'Demo the student adaptation loop: switch language, reading level, and bandwidth mode on the same lesson.',
+    mode: 'EduEquity',
   }
 }
 

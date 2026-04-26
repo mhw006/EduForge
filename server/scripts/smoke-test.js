@@ -210,6 +210,22 @@ async function testAdaptation(prisma) {
   });
 
   const { adaptLesson } = require(path.join(__dirname, '..', 'src/middleware/eduequity'));
+
+  // Reset demo student profile to known state — protects against drift from
+  // earlier PUT /api/profile tests, manual fiddling, or seed updates.
+  await prisma.learnerProfile.upsert({
+    where: { userId: 'demo_student_001' },
+    update: {
+      readingLevel: 'FOUNDATIONAL', language: 'es', bandwidthMode: 'TEXT_ONLY',
+      fontSize: 'LARGE', dyslexiaFont: true, ttsEnabled: true, ttsProvider: 'WEB_SPEECH',
+    },
+    create: {
+      userId: 'demo_student_001',
+      readingLevel: 'FOUNDATIONAL', language: 'es', bandwidthMode: 'TEXT_ONLY',
+      fontSize: 'LARGE', dyslexiaFont: true, ttsEnabled: true, ttsProvider: 'WEB_SPEECH',
+    },
+  });
+
   const student = await prisma.user.findUnique({
     where: { id: 'demo_student_001' },
     include: { profile: true },
