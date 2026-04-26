@@ -88,22 +88,33 @@ function ClassInsightsCard({ analytics }) {
       <li>
         <strong>Most viewed lesson</strong>
         <span>{insights.mostViewedLesson?.title || 'No lesson views yet'}</span>
-        <small>{insights.mostViewedLesson ? `${insights.mostViewedLesson.views} views` : 'Waiting on student traffic'}</small>
+        <small>{insights.mostViewedLesson ? `${insights.mostViewedLesson.views} views` : 'Waiting on student traffic — publish a lesson and students open it'}</small>
       </li>
       <li>
         <strong>Lowest performing level</strong>
         <span>{prettyLabel(insights.lowestPerformingLevel)}</span>
-        <small>{insights.avgQuizScoreOverall != null ? `Average quiz score: ${insights.avgQuizScoreOverall}%` : 'Publish a quiz-backed lesson to unlock performance insight'}</small>
+        <small>
+          {insights.avgQuizScoreOverall != null
+            ? `Average quiz score across the class: ${insights.avgQuizScoreOverall}%. This is the reading tier where quiz scores are lowest — where students need the most support.`
+            : 'Publish a lesson that includes a quiz and have students attempt it — then this will show which tier is struggling most.'}
+        </small>
       </li>
       <li>
         <strong>Teacher rewrite hotspot</strong>
         <span>{prettyLabel(insights.mostEditedSection)}</span>
-        <small>{analytics.editSectionSummary?.length ? 'AI vs final deltas are being tracked live' : 'No teacher feedback logged yet — accept or edit one generated section to start the loop'}</small>
+        <small>
+          {analytics.editSectionSummary?.length
+            ? 'The lesson section you edit most often after AI generation. When you change an Overview, Vocabulary, or Quiz block instead of accepting it, EduForge logs the edit. The section logged most is the hotspot — it tells you where the AI needs the most improvement for your class.'
+            : 'Open a lesson in LessonForge and use the Accept or edit the generated sections. Every change is logged, and the most-changed section appears here.'}
+        </small>
       </li>
       <li>
         <strong>Reading-level mix</strong>
         <span>{readingMix}</span>
-        <small>{lessonEngagement?.length ? `${lessonEngagement.length} ready lessons in this class` : 'No ready lessons yet'}</small>
+        <small>
+          How your enrolled students are distributed across Foundational, Grade Level, and Advanced reading tiers based on their diagnostic results.
+          {lessonEngagement?.length ? ` ${lessonEngagement.length} published lesson${lessonEngagement.length !== 1 ? 's' : ''} ready for students.` : ' No published lessons yet.'}
+        </small>
       </li>
     </ul>
   )
@@ -123,18 +134,27 @@ function StudentSignalsCard({ analytics }) {
     <ul className="item-list compact">
       <li>
         <strong>Support watchlist</strong>
-        <span>{analytics.insights?.studentsNeedingSupport || 0} {analytics.insights?.studentsNeedingSupport === 1 ? 'student is' : 'students are'} currently flagged for foundational support</span>
-        <small>{analytics.loopMetrics.diagnosticsCompleted > 0 ? `${analytics.loopMetrics.diagnosticsCompleted} diagnostics completed` : 'Run a diagnostic to sharpen this signal'}</small>
+        <span>{analytics.insights?.studentsNeedingSupport || 0} {analytics.insights?.studentsNeedingSupport === 1 ? 'student is' : 'students are'} flagged for foundational support</span>
+        <small>
+          Students score Foundational on a reading or Below Grade on a math diagnostic and are flagged here. Go to the Classes tab to see exactly who they are and override their lesson level.
+          {analytics.loopMetrics.diagnosticsCompleted > 0 ? ` ${analytics.loopMetrics.diagnosticsCompleted} diagnostic${analytics.loopMetrics.diagnosticsCompleted !== 1 ? 's' : ''} completed so far.` : ' No diagnostics completed yet — share the student diagnostic link.'}
+        </small>
       </li>
       <li>
         <strong>Top student behavior</strong>
         <span>{prettyEventLabel(topEvent)}</span>
-        <small>{analytics.loopMetrics.engagementEvents} engagement events captured across the class</small>
+        <small>
+          The single most common action students take inside lessons — e.g. switching language, toggling audio, changing bandwidth, or starting a quiz. Tells you what accessibility features your class actually uses.
+          {` ${analytics.loopMetrics.engagementEvents} total events logged.`}
+        </small>
       </li>
       <li>
         <strong>Math-level mix</strong>
         <span>{mathMix}</span>
-        <small>{analytics.loopMetrics.studentsTracked} student profiles represented in this view</small>
+        <small>
+          How your students are split across Below Grade, Grade Level, and Advanced math tiers based on their latest math diagnostic. Use this to decide how much scaffolding to add to your next math lesson.
+          {` ${analytics.loopMetrics.studentsTracked} student profile${analytics.loopMetrics.studentsTracked !== 1 ? 's' : ''} tracked.`}
+        </small>
       </li>
     </ul>
   )
@@ -147,18 +167,28 @@ function RecommendedActionsCard({ analytics, recommendation }) {
   ].filter(Boolean).slice(0, 4)
 
   if (suggestions.length === 0) {
-    return <p className="sv-muted">Recommendations will appear after diagnostics, edits, and engagement data come in.</p>
+    return (
+      <div>
+        <p className="sv-muted" style={{ marginBottom: '0.5rem' }}>Recommendations will appear after diagnostics, edits, and engagement data come in.</p>
+        <small className="sv-muted">These are generated by Claude based on your class data — diagnostic scores, quiz results, which lesson sections you rewrote, and how students engage with lessons.</small>
+      </div>
+    )
   }
 
   return (
-    <ul className="item-list compact">
-      {suggestions.map((item, index) => (
-        <li key={`${index}-${item.slice(0, 20)}`}>
-          <strong>{index === 0 ? 'Highest priority' : `Next move ${index + 1}`}</strong>
-          <span>{item}</span>
-        </li>
-      ))}
-    </ul>
+    <div>
+      <p className="sv-muted" style={{ marginBottom: '0.75rem', fontSize: '0.82em' }}>
+        Ranked actions generated by Claude from your class's diagnostic scores, quiz results, lesson edits, and engagement patterns.
+      </p>
+      <ul className="item-list compact">
+        {suggestions.map((item, index) => (
+          <li key={`${index}-${item.slice(0, 20)}`}>
+            <strong>{index === 0 ? '1 · Highest priority' : `${index + 1} · Next move`}</strong>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

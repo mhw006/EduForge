@@ -113,29 +113,23 @@ router.get('/me/summary', protect, requireStudent, async (req, res) => {
       }
     }
 
+    function fmt(attempt, levelField) {
+      if (!attempt) return null;
+      return {
+        attemptId: attempt.id,
+        classId: attempt.classId,
+        className: attempt.class?.name || null,
+        score: attempt.score,
+        totalQuestions: attempt.totalQuestions,
+        inferredLevel: attempt[levelField],
+        completedAt: attempt.completedAt,
+      };
+    }
+
     res.json({
-      latestReading: latestByDomain.get('READING')
-        ? {
-            attemptId: latestByDomain.get('READING').id,
-            classId: latestByDomain.get('READING').classId,
-            className: latestByDomain.get('READING').class?.name || null,
-            score: latestByDomain.get('READING').score,
-            totalQuestions: latestByDomain.get('READING').totalQuestions,
-            inferredLevel: latestByDomain.get('READING').inferredReadingLevel,
-            completedAt: latestByDomain.get('READING').completedAt,
-          }
-        : null,
-      latestMath: latestByDomain.get('MATH')
-        ? {
-            attemptId: latestByDomain.get('MATH').id,
-            classId: latestByDomain.get('MATH').classId,
-            className: latestByDomain.get('MATH').class?.name || null,
-            score: latestByDomain.get('MATH').score,
-            totalQuestions: latestByDomain.get('MATH').totalQuestions,
-            inferredLevel: latestByDomain.get('MATH').inferredMathLevel,
-            completedAt: latestByDomain.get('MATH').completedAt,
-          }
-        : null,
+      latestReading: fmt(latestByDomain.get('READING'), 'inferredReadingLevel'),
+      latestMath:    fmt(latestByDomain.get('MATH'),    'inferredMathLevel'),
+      latestScience: fmt(latestByDomain.get('SCIENCE'), 'inferredReadingLevel'),
       totalAttempts: attempts.length,
     });
   } catch (err) {

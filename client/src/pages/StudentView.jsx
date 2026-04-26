@@ -326,9 +326,21 @@ function DiagnosticLauncher({ classes, diagnostics, loading, profile, onComplete
     }
   }
 
-  const readingCompleted = Boolean(diagnostics?.latestReading)
-  const mathCompleted = Boolean(diagnostics?.latestMath)
   const hasClassContext = classes.length > 0
+
+  // Map domain → latest attempt from the summary object
+  const latestByDomain = {
+    READING: diagnostics?.latestReading || null,
+    MATH:    diagnostics?.latestMath    || null,
+    SCIENCE: diagnostics?.latestScience || null,
+  }
+
+  function latestScoreLabel(domain) {
+    const attempt = latestByDomain[domain]
+    if (!attempt) return null
+    const levelLabel = domain === 'MATH' ? formatMathLevel(attempt.inferredLevel) : formatReadingLevel(attempt.inferredLevel)
+    return `${attempt.score}/${attempt.totalQuestions} · ${levelLabel}${attempt.className ? ` · ${attempt.className}` : ''}`
+  }
 
   return (
     <section className="bf-card" style={{ marginBottom: '12px' }}>
@@ -340,34 +352,31 @@ function DiagnosticLauncher({ classes, diagnostics, loading, profile, onComplete
       {!questionSet ? (
         <>
           <div style={{ display: 'grid', gap: '12px', marginBottom: '0.75rem' }}>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span className="sv-muted">
-                {readingCompleted
-                  ? `Latest reading diagnostic: ${formatReadingLevel(diagnostics.latestReading.inferredLevel)}`
-                  : profile?.diagnosticReadingLevel
-                    ? `Current reading profile is set to ${formatReadingLevel(profile.diagnosticReadingLevel)}. Run a fresh diagnostic to validate or update it.`
-                    : 'No reading diagnostic completed yet'}
-              </span>
-              {catalog.find((item) => item.domain === 'READING') && (
-                <button className="bf-btn" type="button" onClick={() => startDiagnostic('READING')} disabled={loading || !hasClassContext}>
-                  {readingCompleted ? 'Retake reading diagnostic' : 'Start reading diagnostic'}
-                </button>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span className="sv-muted">
-                {mathCompleted
-                  ? `Latest math diagnostic: ${formatMathLevel(diagnostics.latestMath.inferredLevel)}`
-                  : profile?.diagnosticMathLevel
-                    ? `Current math profile is set to ${formatMathLevel(profile.diagnosticMathLevel)}. Run a fresh diagnostic to validate or update it.`
-                    : 'No math diagnostic completed yet'}
-              </span>
-              {catalog.find((item) => item.domain === 'MATH') && (
-                <button className="bf-btn ghost" type="button" onClick={() => startDiagnostic('MATH')} disabled={loading || !hasClassContext}>
-                  {mathCompleted ? 'Retake math diagnostic' : 'Start math diagnostic'}
-                </button>
-              )}
-            </div>
+            {catalog.map((item) => {
+              const latest = latestByDomain[item.domain]
+              const scoreLabel = latestScoreLabel(item.domain)
+              const completed = Boolean(latest)
+              return (
+                <div key={item.domain} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: '180px' }}>
+                    <strong style={{ fontSize: '0.9em' }}>{item.title}</strong>
+                    <p className="sv-muted" style={{ margin: '2px 0 0', fontSize: '0.82em' }}>
+                      {completed
+                        ? `Latest: ${scoreLabel}`
+                        : item.description}
+                    </p>
+                  </div>
+                  <button
+                    className={completed ? 'bf-btn ghost' : 'bf-btn'}
+                    type="button"
+                    onClick={() => startDiagnostic(item.domain)}
+                    disabled={loading || !hasClassContext}
+                  >
+                    {completed ? 'Retake' : 'Start'}
+                  </button>
+                </div>
+              )
+            })}
           </div>
 
           {classes.length > 0 ? (
