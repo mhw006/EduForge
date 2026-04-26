@@ -161,12 +161,14 @@ async function cacheTranslatedLesson(lessonId, level, targetLang, content) {
   }
 }
 
+// Translate an entire lesson level in ONE DeepL API call by collecting all
+// text strings into a single array request, then mapping results back.
 async function translateLesson(content, lessonId, level, targetLang) {
   if (!content || !targetLang || isEnglish(targetLang)) return content;
 
   try {
     const cached = await readCachedLesson(lessonId, level, targetLang);
-    if (cached) return cached.content;
+    if (cached && !cached.content?._translationFailed) return cached.content;
   } catch (err) {
     console.warn(`Translation cache lookup failed: ${err.message}`);
   }
@@ -177,29 +179,56 @@ async function translateLesson(content, lessonId, level, targetLang) {
   }
 
   try {
-    const [overview, mainContent, keyVocabulary, activities, quiz] = await Promise.all([
-      translateLessonText(content.overview, targetLang),
-      translateLessonText(content.mainContent, targetLang),
-      Promise.all(
-        asArray(content.keyVocabulary).map((item) => translateVocabularyItem(item, targetLang))
-      ),
-      Promise.all(asArray(content.activities).map((item) => translateActivity(item, targetLang))),
-      Promise.all(asArray(content.quiz).map((item) => translateQuizItem(item, targetLang))),
-    ]);
+    const vocab = asArray(content.keyVocabulary);
+    const activities = asArray(content.activities);
+    const quiz = asArray(content.quiz);
+
+    // Collect every text that needs translation into a flat array
+    const texts = [
+      content.overview || '',
+      content.mainContent || '',
+      ...vocab.flatMap((v) => [v.term || '', v.definition || '']),
+      ...activities.map((a) => a.instructions || ''),
+      ...quiz.flatMap((q) => [q.question || '', ...asArray(q.options), q.explanation || '']),
+    ];
+
+    // Single API call with all texts at once
+    const response = await axios.post(
+      DEEPL_API_URL,
+      {
+        text: texts,
+        target_lang: getDeepLLanguage(targetLang),
+        tag_handling: 'html',
+      },
+      {
+        headers: {
+          Authorization: `DeepL-Auth-Key ${process.env.DEEPL_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const results = response.data.translations.map((t) => t.text);
+    let i = 0;
+    const take = () => results[i++] ?? '';
 
     const translated = {
       ...content,
-      overview,
-      mainContent,
-      keyVocabulary,
-      activities,
-      quiz,
+      overview: take(),
+      mainContent: take(),
+      keyVocabulary: vocab.map((v) => ({ ...v, term: take(), definition: take() })),
+      activities: activities.map((a) => ({ ...a, instructions: take() })),
+      quiz: quiz.map((q) => {
+        const question = take();
+        const options = asArray(q.options).map(() => take());
+        const explanation = take();
+        return { ...q, question, options, explanation };
+      }),
       _translated: true,
       _targetLang: targetLang,
     };
 
     await cacheTranslatedLesson(lessonId, level, targetLang, translated);
-
     return translated;
   } catch (err) {
     console.warn(`Lesson translation failed: ${err.message}`);

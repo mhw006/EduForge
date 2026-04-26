@@ -10,10 +10,10 @@ import {
 } from '../services/aiClient'
 
 const TABS = [
-  { id: 'lessons', icon: 'Book', label: 'Lessons' },
-  { id: 'assignments', icon: 'Tasks', label: 'Assignments' },
-  { id: 'planner', icon: 'Plan', label: 'Study Planner' },
-  { id: 'bonfire', icon: 'Focus', label: 'Progress' },
+  { id: 'lessons', icon: '📚', label: 'Lessons' },
+  { id: 'assignments', icon: '📋', label: 'Assignments' },
+  { id: 'planner', icon: '📅', label: 'Study Planner' },
+  { id: 'bonfire', icon: '🔥', label: 'Progress' },
 ]
 
 const READING_LEVELS = [
@@ -56,7 +56,7 @@ const SAMPLE_ASSIGNMENTS = [
   { id: 'a3', title: 'Vocabulary Review', due: '2026-05-02', status: 'In progress', course: 'ELA' },
 ]
 
-const TODAY = new Date('2026-04-25')
+const TODAY = new Date()
 
 function getFontClass(fontSize) {
   return {
