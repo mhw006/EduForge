@@ -103,7 +103,7 @@ async function testDatabase(prisma) {
 }
 
 // ─── Phase 3: HTTP endpoints ─────────────────────────────────────────────────
-async function testEndpoints() {
+async function testEndpoints(prisma) {
   console.log('\n[3/4] HTTP endpoints');
 
   await check('GET /api/health → 200', async () => {
@@ -112,25 +112,30 @@ async function testEndpoints() {
   });
 
   await check('GET /api/profile → 200', async () => {
-    const r = await http('GET', '/api/profile');
+    const r = await http('GET', '/api/profile', null, { demo: 'teacher' });
     if (r.status !== 200) throw new Error(`got ${r.status}: ${r.raw.slice(0, 80)}`);
   });
 
   await check('PUT /api/profile → 200 (idempotent)', async () => {
-    const r = await http('PUT', '/api/profile', { readingLevel: 'GRADE_LEVEL', language: 'en' });
+    const r = await http(
+      'PUT',
+      '/api/profile',
+      { readingLevel: 'GRADE_LEVEL', language: 'en' },
+      { demo: 'teacher' }
+    );
     if (r.status !== 200) throw new Error(`got ${r.status}: ${r.raw.slice(0, 80)}`);
   });
 
   let smokeClass;
   await check('POST /api/classes → 201', async () => {
-    const r = await http('POST', '/api/classes', { name: '__smoke_test__' });
+    const r = await http('POST', '/api/classes', { name: '__smoke_test__' }, { demo: 'teacher' });
     if (r.status !== 201) throw new Error(`got ${r.status}: ${r.raw.slice(0, 200)}`);
     smokeClass = r.body;
     return `id=${smokeClass.id}`;
   });
 
   await check('GET /api/classes → 200 (teacher list)', async () => {
-    const r = await http('GET', '/api/classes');
+    const r = await http('GET', '/api/classes', null, { demo: 'teacher' });
     if (r.status !== 200) throw new Error(`got ${r.status}`);
     if (!Array.isArray(r.body?.classes)) throw new Error('expected { classes: [] }');
   });
@@ -143,7 +148,7 @@ async function testEndpoints() {
   }
 
   await check('POST /api/classes (validation: missing name → 400)', async () => {
-    const r = await http('POST', '/api/classes', {});
+    const r = await http('POST', '/api/classes', {}, { demo: 'teacher' });
     if (r.status !== 400) throw new Error(`expected 400, got ${r.status}`);
   });
 
@@ -153,6 +158,14 @@ async function testEndpoints() {
   });
 
   await check('GET /api/lessons/demo_lesson_001 (student) → 200', async () => {
+    await prisma.lesson.update({
+      where: { id: 'demo_lesson_001' },
+      data: {
+        publishedAt: new Date(),
+        publishedById: 'demo_teacher_001',
+      },
+    });
+
     const r = await http('GET', '/api/lessons/demo_lesson_001', null, { demo: 'student' });
     if (r.status !== 200) throw new Error(`got ${r.status}: ${r.raw.slice(0, 120)}`);
   });
@@ -243,10 +256,7 @@ async function testAdaptation(prisma) {
       },
     };
 
-    await new Promise((resolve, reject) => {
-      adaptLesson(req, res, (err) => err ? reject(err) : resolve());
-      setTimeout(resolve, 0);
-    });
+    await adaptLesson(req, res, () => {});
 
     if (statusCode !== 403) throw new Error(`expected 403, got ${statusCode}`);
     if (!payload?.error) throw new Error('expected error payload');
@@ -273,10 +283,7 @@ async function testAdaptation(prisma) {
       json: () => null,
     };
 
-    await new Promise((resolve, reject) => {
-      adaptLesson(req, res, (err) => err ? reject(err) : resolve());
-      setTimeout(resolve, 0);
-    });
+    await adaptLesson(req, res, () => {});
 
     if (statusCode !== 403) throw new Error(`expected 403, got ${statusCode}`);
   });
@@ -287,7 +294,19 @@ async function testAdaptation(prisma) {
 // ─── Cleanup ─────────────────────────────────────────────────────────────────
 async function cleanup(prisma) {
   console.log('\n[cleanup]');
-  const r1 = await prisma.lesson.deleteMany({ where: { standard: '__smoke_test__' } });
+  const lessonIds = (
+    await prisma.lesson.findMany({
+      where: { standard: '__smoke_test__' },
+      select: { id: true },
+    })
+  ).map((lesson) => lesson.id);
+
+  await prisma.translationCache.deleteMany({ where: { lessonId: { in: lessonIds } } });
+  await prisma.audioCache.deleteMany({ where: { lessonId: { in: lessonIds } } });
+  await prisma.quizAttempt.deleteMany({ where: { lessonId: { in: lessonIds } } });
+  await prisma.engagementEvent.deleteMany({ where: { lessonId: { in: lessonIds } } });
+
+  const r1 = await prisma.lesson.deleteMany({ where: { id: { in: lessonIds } } });
   const r2 = await prisma.enrollment.deleteMany({ where: { class: { name: '__smoke_test__' } } });
   const r3 = await prisma.class.deleteMany({ where: { name: '__smoke_test__' } });
   const r4 = await prisma.user.deleteMany({
@@ -330,12 +349,15 @@ async function main() {
   console.log('  ✓ server booted');
 
   try {
-    await testEndpoints();
+    await testEndpoints(prisma);
     await testAdaptation(prisma);
   } finally {
-    await cleanup(prisma);
-    child.kill();
-    await prisma.$disconnect();
+    try {
+      await cleanup(prisma);
+    } finally {
+      child.kill();
+      await prisma.$disconnect();
+    }
   }
 
   // ── Summary ──

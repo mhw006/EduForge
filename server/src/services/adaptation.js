@@ -20,6 +20,21 @@ const LEVEL_MAP = {
   ADVANCED: 'advanced',
 };
 
+function isMediaHeavyActivity(activity) {
+  const haystack = [activity?.title, activity?.instructions]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return (
+    haystack.includes('watch') ||
+    haystack.includes('video') ||
+    haystack.includes('vídeo') ||
+    haystack.includes('mira') ||
+    haystack.includes('mirar')
+  );
+}
+
 function applyBandwidthMode(content, bandwidthMode) {
   if (bandwidthMode === 'FULL') return content;
 
@@ -34,11 +49,7 @@ function applyBandwidthMode(content, bandwidthMode) {
     }
 
     if (Array.isArray(stripped.activities)) {
-      stripped.activities = stripped.activities.filter(
-        (activity) =>
-          !activity.instructions?.toLowerCase().includes('watch') &&
-          !activity.instructions?.toLowerCase().includes('video')
-      );
+      stripped.activities = stripped.activities.filter((activity) => !isMediaHeavyActivity(activity));
     }
   }
 
