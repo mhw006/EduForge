@@ -131,21 +131,21 @@ router.post('/save', requireTeacher, async (req, res) => {
         return res.status(403).json({ error: 'Class not found or access denied' });
       }
     } else {
-      const existing = await prisma.class.findFirst({
-        where: { teacherId },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true },
+      const draftClassName = className?.trim() || 'LessonForge Drafts';
+      const existingDraftClass = await prisma.class.findFirst({
+        where: { teacherId, name: draftClassName },
+        select: { id: true, name: true },
       });
 
-      if (existing) {
-        targetClassId = existing.id;
+      if (existingDraftClass) {
+        targetClassId = existingDraftClass.id;
       } else {
         const createdClass = await prisma.class.create({
           data: {
-            name: className,
+            name: draftClassName,
             teacherId,
           },
-          select: { id: true },
+          select: { id: true, name: true },
         });
         targetClassId = createdClass.id;
       }
@@ -166,6 +166,7 @@ router.post('/save', requireTeacher, async (req, res) => {
         classId: true,
         title: true,
         status: true,
+        publishedAt: true,
         createdAt: true,
       },
     });

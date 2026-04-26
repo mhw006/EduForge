@@ -239,7 +239,6 @@ function DashboardTab({ onNavigate }) {
           )
           setCurriculumQueue(
             lessonResults.flat()
-              .filter((lesson) => lesson.publishedAt)
               .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
               .slice(0, 4)
           )
@@ -355,7 +354,7 @@ function DashboardTab({ onNavigate }) {
           <TaskChecklist tasks={taskState} onToggle={toggleTask} />
         </DashboardCard>
 
-        <DashboardCard title="Recent Published Lessons">
+        <DashboardCard title="Recent Saved Lessons">
           <ul className="item-list compact">
             {curriculumQueue.length > 0 ? (
               curriculumQueue.map(item => (
@@ -367,9 +366,9 @@ function DashboardTab({ onNavigate }) {
               ))
             ) : (
               <li>
-                <strong>No published lessons yet</strong>
-                <span>Generate in LessonForge, then publish one lesson to populate this panel.</span>
-                <small>Ready for your first demo-ready lesson</small>
+                <strong>No saved lessons yet</strong>
+                <span>Generate in LessonForge to create a stored draft, then publish when you're ready.</span>
+                <small>Drafts and published lessons will both appear here</small>
               </li>
             )}
           </ul>
@@ -538,7 +537,10 @@ function LessonForgeTab() {
           lesson: result,
         })
         setSavedLessonId(saveResult.lesson.id)
-        setSaveNotice({ kind: 'success', message: `Saved to PostgreSQL (lesson ID: ${saveResult.lesson.id})` })
+        setSaveNotice({
+          kind: 'success',
+          message: `Saved as a draft in LessonForge Drafts (lesson ID: ${saveResult.lesson.id})`,
+        })
       } catch (saveErr) {
         setSaveNotice({ kind: 'error', message: `Generated OK, but save failed: ${saveErr.message || 'Unknown error'}` })
       }
