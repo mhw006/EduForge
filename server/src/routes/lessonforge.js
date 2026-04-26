@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const prisma = require('../lib/prisma');
+const { requireTeacher } = require('../middleware/auth');
 const { generateLesson } = require('../services/lessonforge');
 
 // ─── POST /api/lessonforge/generate ──────────────────────────────────────────
@@ -26,6 +28,85 @@ router.post('/generate', async (req, res) => {
   } catch (err) {
     console.error('LessonForge /generate error:', err);
     res.status(500).json({ error: 'Lesson generation failed', detail: err.message });
+  }
+});
+
+// ─── POST /api/lessonforge/save ──────────────────────────────────────────────
+// Persists a fully generated lesson into PostgreSQL (Supabase).
+router.post('/save', requireTeacher, async (req, res) => {
+  const {
+    classId,
+    className = 'My Class',
+    title,
+    standard,
+    lesson,
+  } = req.body;
+
+  if (!standard || !standard.trim()) {
+    return res.status(400).json({ error: 'standard is required' });
+  }
+
+  if (!lesson || !lesson.foundational || !lesson.gradeLevel || !lesson.advanced) {
+    return res.status(400).json({ error: 'lesson with foundational, gradeLevel, and advanced is required' });
+  }
+
+  try {
+    const teacherId = req.auth?.userId || req.user?.id;
+    let targetClassId = classId;
+
+    if (targetClassId) {
+      const found = await prisma.class.findFirst({
+        where: { id: targetClassId, teacherId },
+        select: { id: true },
+      });
+
+      if (!found) {
+        return res.status(403).json({ error: 'Class not found or access denied' });
+      }
+    } else {
+      const existing = await prisma.class.findFirst({
+        where: { teacherId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      });
+
+      if (existing) {
+        targetClassId = existing.id;
+      } else {
+        const createdClass = await prisma.class.create({
+          data: {
+            name: className,
+            teacherId,
+          },
+          select: { id: true },
+        });
+        targetClassId = createdClass.id;
+      }
+    }
+
+    const saved = await prisma.lesson.create({
+      data: {
+        classId: targetClassId,
+        standard: standard.trim(),
+        title: title?.trim() || lesson.title || 'Untitled Lesson',
+        status: 'READY',
+        foundational: lesson.foundational,
+        gradeLevel: lesson.gradeLevel,
+        advanced: lesson.advanced,
+      },
+      select: {
+        id: true,
+        classId: true,
+        title: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    res.status(201).json({ lesson: saved });
+  } catch (err) {
+    console.error('LessonForge /save error:', err);
+    res.status(500).json({ error: 'Failed to save lesson', detail: err.message });
   }
 });
 

@@ -3,12 +3,7 @@ import { Link } from 'react-router-dom'
 import DashboardCard from '../components/DashboardCard'
 import BonfireWidget from '../components/BonfireWidget'
 import TaskChecklist from '../components/TaskChecklist'
-import { getDashboardData, recommendNextFocusTask } from '../services/aiClient'
-
-const curriculumQueue = [
-  { id: 'c1', title: 'Week 4 Algebra Slides', source: 'Google Classroom import', status: 'Ready to transform' },
-  { id: 'c2', title: 'Cell Biology Lab Notes', source: 'Teacher upload', status: 'Needs language scaffolds' },
-]
+import { getClasses, getDashboardData, getLessonsByClass, recommendNextFocusTask } from '../services/aiClient'
 
 const accessibilityCoverage = [
   { id: 'ac1', group: 'Multilingual learners', coverage: '4/6 lessons adapted this week' },
@@ -19,6 +14,7 @@ const accessibilityCoverage = [
 export default function Dashboard() {
   const [data, setData] = useState(null)
   const [recommendation, setRecommendation] = useState(null)
+  const [curriculumQueue, setCurriculumQueue] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -27,11 +23,48 @@ export default function Dashboard() {
         const dashboard = await getDashboardData()
         setData(dashboard)
 
-        const rec = await recommendNextFocusTask({
-          fuelPoints: dashboard.progress?.fuelPoints || 0,
-          missedDays: 0,
-        })
-        setRecommendation(rec)
+        try {
+          const rec = await recommendNextFocusTask({
+            fuelPoints: dashboard.progress?.fuelPoints || 0,
+            missedDays: 0,
+          })
+          setRecommendation(rec)
+        } catch {
+          setRecommendation(null)
+        }
+
+        try {
+          const classesResponse = await getClasses()
+          const classes = classesResponse?.classes || []
+
+          if (classes.length === 0) {
+            setCurriculumQueue([])
+            return
+          }
+
+          const lessonResults = await Promise.all(
+            classes.map(async (cls) => {
+              const lessonsResponse = await getLessonsByClass(cls.id)
+              const lessons = lessonsResponse?.lessons || []
+              return lessons.map((lesson) => ({
+                id: lesson.id,
+                title: lesson.title,
+                source: `Summary: ${lesson.standard}`,
+                status: `${cls.name} · Stored in PostgreSQL`,
+                createdAt: lesson.createdAt,
+              }))
+            })
+          )
+
+          const queue = lessonResults
+            .flat()
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 5)
+
+          setCurriculumQueue(queue)
+        } catch {
+          setCurriculumQueue([])
+        }
       } finally {
         setLoading(false)
       }
@@ -77,9 +110,6 @@ export default function Dashboard() {
           <Link className="bf-btn" to="/lesson-planner">
             Upload Lesson Plan
           </Link>
-          <Link className="bf-btn" to="/diagnostic">
-            Create Diagnostic
-          </Link>
           <Link className="bf-btn ghost" to="/adapt-studio">
             Open Adapt Studio
           </Link>
@@ -87,30 +117,6 @@ export default function Dashboard() {
       </header>
 
       <section className="dashboard-grid">
-        <DashboardCard title="Upcoming Lesson Deliverables">
-          <ul className="item-list">
-            {(data?.upcomingAssignments || []).map((item) => (
-              <li key={item.id}>
-                <strong>{item.title}</strong>
-                <span>{item.course}</span>
-                <small>Prep by {item.dueDate}</small>
-              </li>
-            ))}
-          </ul>
-        </DashboardCard>
-
-        <DashboardCard title="Planned Assessments">
-          <ul className="item-list">
-            {(data?.upcomingExams || []).map((item) => (
-              <li key={item.id}>
-                <strong>{item.name}</strong>
-                <span>{item.course}</span>
-                <small>Assessment date {item.examDate}</small>
-              </li>
-            ))}
-          </ul>
-        </DashboardCard>
-
         <DashboardCard
           title="Today's Teacher Actions"
           action={<small>{completed}/{taskState.length} completed</small>}
@@ -120,13 +126,21 @@ export default function Dashboard() {
 
         <DashboardCard title="Curriculum Upload Queue">
           <ul className="item-list compact">
-            {curriculumQueue.map((item) => (
-              <li key={item.id}>
-                <strong>{item.title}</strong>
-                <span>{item.source}</span>
-                <small>{item.status}</small>
+            {curriculumQueue.length > 0 ? (
+              curriculumQueue.map((item) => (
+                <li key={item.id}>
+                  <strong>{item.title}</strong>
+                  <span>{item.source}</span>
+                  <small>{item.status}</small>
+                </li>
+              ))
+            ) : (
+              <li>
+                <strong>No saved lessons yet</strong>
+                <span>Generate from LessonForge to add to this queue</span>
+                <small>Waiting for first PostgreSQL record</small>
               </li>
-            ))}
+            )}
           </ul>
         </DashboardCard>
 

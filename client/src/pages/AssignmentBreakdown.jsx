@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { generateLessonPlan } from '../services/aiClient'
+import { generateLessonPlan, saveGeneratedLesson } from '../services/aiClient'
 
 const GRADE_MAP = {
   'Grade 1-3': '2',
@@ -21,6 +21,7 @@ export default function AssignmentBreakdown() {
   const [lesson, setLesson] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [saveNotice, setSaveNotice] = useState(null)
   const [activeTab, setActiveTab] = useState('foundational')
 
   function updateField(event) {
@@ -33,6 +34,7 @@ export default function AssignmentBreakdown() {
     setLoading(true)
     setError(null)
     setLesson(null)
+    setSaveNotice(null)
     try {
       const result = await generateLessonPlan({
         standard: form.standard,
@@ -42,6 +44,24 @@ export default function AssignmentBreakdown() {
       })
       setLesson(result)
       setActiveTab('foundational')
+
+      try {
+        const saveResult = await saveGeneratedLesson({
+          className: 'LessonForge Drafts',
+          title: form.title,
+          standard: form.standard,
+          lesson: result,
+        })
+        setSaveNotice({
+          kind: 'success',
+          message: `Saved to PostgreSQL (lesson ID: ${saveResult.lesson.id})`,
+        })
+      } catch (saveErr) {
+        setSaveNotice({
+          kind: 'error',
+          message: `Generated successfully, but save failed: ${saveErr.message || 'Unknown error'}`,
+        })
+      }
     } catch (err) {
       setError(err.message || 'Generation failed. Check your connection and try again.')
     } finally {
@@ -110,6 +130,11 @@ export default function AssignmentBreakdown() {
           </button>
         </form>
         {error && <p style={{ color: '#f87171', marginTop: '1rem' }}>{error}</p>}
+        {saveNotice && (
+          <p style={{ color: saveNotice.kind === 'success' ? '#4ade80' : '#facc15', marginTop: '0.75rem' }}>
+            {saveNotice.message}
+          </p>
+        )}
       </section>
 
       {lesson && (
