@@ -216,7 +216,7 @@ router.get('/:id', requireAuth, adaptContent, async (req, res) => {
       lessonId: req.params.id,
       userId: req.auth?.userId || req.user?.id,
       allowTeacherOwner: true,
-      allowEnrolledStudent: false,
+      allowEnrolledStudent: true,
     });
 
     res.json({

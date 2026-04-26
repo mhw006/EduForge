@@ -53,15 +53,6 @@ async function assertLessonAccess({
     throw new HttpError(403, 'Not authorized');
   }
 
-  if (
-    requirePublishedForStudents &&
-    context.isEnrolledStudent &&
-    !context.isTeacherOwner &&
-    !context.lesson.publishedAt
-  ) {
-    throw new HttpError(403, 'Lesson has not been published yet');
-  }
-
   return context;
 }
 
