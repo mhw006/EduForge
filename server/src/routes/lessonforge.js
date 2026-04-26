@@ -1,8 +1,56 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const prisma = require('../lib/prisma');
 const { requireTeacher } = require('../middleware/auth');
 const { generateLesson } = require('../services/lessonforge');
+
+const generationCache = new Map();
+const inflightGenerations = new Map();
+const CACHE_TTL_MS = Number(process.env.LESSONFORGE_CACHE_TTL_MS || 1000 * 60 * 60 * 6);
+const MAX_CACHE_ENTRIES = Number(process.env.LESSONFORGE_CACHE_MAX_ENTRIES || 50);
+
+function normalizeCacheText(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
+function getCacheKey({ standard, gradeLevel, subject }) {
+  const cacheInput = JSON.stringify({
+    standard: normalizeCacheText(standard).toLowerCase(),
+    gradeLevel: normalizeCacheText(gradeLevel),
+    subject: normalizeCacheText(subject).toLowerCase(),
+  });
+
+  return crypto.createHash('sha256').update(cacheInput).digest('hex');
+}
+
+function cloneLesson(lesson) {
+  return JSON.parse(JSON.stringify(lesson));
+}
+
+function readCachedGeneration(cacheKey) {
+  const cached = generationCache.get(cacheKey);
+  if (!cached) return null;
+
+  if (Date.now() - cached.createdAt > CACHE_TTL_MS) {
+    generationCache.delete(cacheKey);
+    return null;
+  }
+
+  return cloneLesson(cached.lesson);
+}
+
+function writeCachedGeneration(cacheKey, lesson) {
+  if (generationCache.size >= MAX_CACHE_ENTRIES) {
+    const oldestKey = generationCache.keys().next().value;
+    if (oldestKey) generationCache.delete(oldestKey);
+  }
+
+  generationCache.set(cacheKey, {
+    createdAt: Date.now(),
+    lesson: cloneLesson(lesson),
+  });
+}
 
 // ─── POST /api/lessonforge/generate ──────────────────────────────────────────
 // Accepts a curriculum standard + context and returns 3-tier differentiated
@@ -23,8 +71,27 @@ router.post('/generate', async (req, res) => {
     : standard;
 
   try {
-    const result = await generateLesson(fullStandard, gradeLevel, subject);
-    res.json(result);
+    const cacheKey = getCacheKey({ standard: fullStandard, gradeLevel, subject });
+    const cached = readCachedGeneration(cacheKey);
+    if (cached) {
+      return res.json({ ...cached, _cached: true });
+    }
+
+    let generation = inflightGenerations.get(cacheKey);
+    if (!generation) {
+      generation = generateLesson(fullStandard, gradeLevel, subject)
+        .then((result) => {
+          writeCachedGeneration(cacheKey, result);
+          return result;
+        })
+        .finally(() => {
+          inflightGenerations.delete(cacheKey);
+        });
+      inflightGenerations.set(cacheKey, generation);
+    }
+
+    const result = await generation;
+    res.json(cloneLesson(result));
   } catch (err) {
     console.error('LessonForge /generate error:', err);
     res.status(500).json({ error: 'Lesson generation failed', detail: err.message });
