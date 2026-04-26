@@ -563,7 +563,8 @@ function getLessonSections(content) {
 
   const mainText = stripHtml(content?.mainContent)
   const paragraphs = mainText
-    .split(/\n{2,}|(?<=[.!?])\s+(?=[A-Z0-9])/)
+    .replace(/([.!?])(\s+)(?=[A-Z0-9])/g, '$1\x00$2')
+    .split(/\n{2,}|\x00/)
     .map((item) => item.trim())
     .filter((item) => item.length > 40)
 
