@@ -37,10 +37,17 @@ const FONT_SIZES = [
 
 const DEFAULT_LANGUAGES = [
   { code: 'en', label: 'English' },
-  { code: 'es', label: 'Espanol' },
-  { code: 'fr', label: 'Francais' },
-  { code: 'zh', label: 'Chinese' },
-  { code: 'pt', label: 'Portuguese' },
+  { code: 'es', label: 'Español' },
+  { code: 'fr', label: 'Français' },
+  { code: 'zh', label: '中文' },
+  { code: 'ar', label: 'العربية' },
+  { code: 'pt', label: 'Português' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'ja', label: '日本語' },
+  { code: 'ko', label: '한국어' },
+  { code: 'hi', label: 'हिन्दी' },
+  { code: 'vi', label: 'Tiếng Việt' },
+  { code: 'tl', label: 'Tagalog' },
 ]
 
 const SAMPLE_ASSIGNMENTS = [
@@ -58,6 +65,14 @@ function getFontClass(fontSize) {
     LARGE: 'student-font-large',
     XLARGE: 'student-font-xlarge',
   }[fontSize] || 'student-font-medium'
+}
+
+function getLanguageLabel(code) {
+  return (
+    DEFAULT_LANGUAGES.find((language) => language.code === code)?.label ||
+    code?.toUpperCase() ||
+    'English'
+  )
 }
 
 function useBandwidthSuggestion(profile, onSuggest) {
@@ -168,6 +183,12 @@ function LessonRenderer({ lesson, profile }) {
   }
 
   const terms = (content.keyVocabulary || []).map((item) => item.term).filter(Boolean)
+  const requestedLanguage = getLanguageLabel(profile.language)
+  const translationStatusLabel = content._translationFailed
+    ? `Translation unavailable: ${requestedLanguage}`
+    : content._translated
+      ? `Translated: ${getLanguageLabel(content._targetLang)}`
+      : 'Original English'
   const articleClass = [
     'student-lesson-article',
     getFontClass(profile.fontSize),
@@ -202,9 +223,9 @@ function LessonRenderer({ lesson, profile }) {
       <div className="student-status-row">
         <span>{lesson.title}</span>
         <span>{lesson.level}</span>
-        <span>{content._translated ? `Translated: ${content._targetLang}` : 'English'}</span>
+        <span>{translationStatusLabel}</span>
         {content._textOnly && <span>Text-only mode</span>}
-        {content._translationFailed && <span>Translation fallback</span>}
+        {content._translationFailed && <span>Showing original lesson</span>}
       </div>
 
       {profile.ttsEnabled && (

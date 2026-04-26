@@ -48,6 +48,7 @@ app.use('/api/classes', require('./routes/classes'));
 app.use('/api/quiz', require('./routes/quiz'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/export', require('./routes/export'));
+app.use('/api/diagnostics', require('./routes/diagnostics'));
 
 // ─── 404 handler ─────────────────────────────────────────────────────────────
 app.use((req, res) => {

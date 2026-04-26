@@ -2,6 +2,8 @@ const express = require('express');
 const PDFDocument = require('pdfkit');
 const prisma = require('../lib/prisma');
 const { protect, requireTeacher } = require('../middleware/auth');
+const { assertLessonAccess } = require('../lib/lesson-access');
+const { isHttpError } = require('../lib/http-error');
 const router = express.Router();
 
 // ─── GET /api/export/:lessonId/pdf ───────────────────────────────────────────
@@ -11,18 +13,13 @@ router.get('/:lessonId/pdf', protect, requireTeacher, async (req, res) => {
     const { lessonId } = req.params;
     const { level } = req.query; // optional: foundational, gradeLevel, advanced
 
-    const lesson = await prisma.lesson.findUnique({
-      where: { id: lessonId },
-      include: { class: { select: { teacherId: true, name: true } } },
+    const { lesson } = await assertLessonAccess({
+      lessonId,
+      userId: req.auth.userId,
+      allowTeacherOwner: true,
+      allowEnrolledStudent: false,
+      requireReady: true,
     });
-
-    if (!lesson || lesson.status !== 'READY') {
-      return res.status(404).json({ error: 'Lesson not found or not ready' });
-    }
-
-    if (lesson.class.teacherId !== req.auth.userId) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
 
     // Log the export event
     await prisma.engagementEvent.create({
@@ -68,24 +65,38 @@ router.get('/:lessonId/pdf', protect, requireTeacher, async (req, res) => {
       doc.fontSize(18).font('Helvetica-Bold').text(`${label} Level`, { underline: true });
       doc.moveDown(0.5);
 
-      if (data.title) {
-        doc.fontSize(14).font('Helvetica-Bold').text(data.title);
+      if (data.levelLabel) {
+        doc.fontSize(14).font('Helvetica-Bold').text(data.levelLabel);
         doc.moveDown(0.3);
       }
 
-      // Objectives
-      if (data.objectives?.length) {
-        doc.fontSize(12).font('Helvetica-Bold').text('Objectives:');
-        data.objectives.forEach((obj) => {
-          doc.fontSize(11).font('Helvetica').text(`  • ${obj}`);
+      if (data.overview) {
+        doc.fontSize(12).font('Helvetica-Bold').text('Overview:');
+        doc.fontSize(11).font('Helvetica').text(data.overview, { lineGap: 2 });
+        doc.moveDown(0.5);
+      }
+
+      if (data.keyVocabulary?.length) {
+        doc.fontSize(12).font('Helvetica-Bold').text('Key Vocabulary:');
+        data.keyVocabulary.forEach((entry) => {
+          doc.fontSize(11).font('Helvetica').text(`  • ${entry.term}: ${entry.definition}`);
         });
         doc.moveDown(0.5);
       }
 
       // Reading passage
-      if (data.reading_passage) {
-        doc.fontSize(12).font('Helvetica-Bold').text('Reading Passage:');
-        doc.fontSize(11).font('Helvetica').text(data.reading_passage, { lineGap: 2 });
+      if (data.mainContent) {
+        doc.fontSize(12).font('Helvetica-Bold').text('Lesson Content:');
+        doc.fontSize(11).font('Helvetica').text(data.mainContent, { lineGap: 2 });
+        doc.moveDown(0.5);
+      }
+
+      if (data.activities?.length) {
+        doc.fontSize(12).font('Helvetica-Bold').text('Activities:');
+        data.activities.forEach((activity) => {
+          doc.fontSize(11).font('Helvetica-Bold').text(`  • ${activity.title}`);
+          doc.fontSize(10).font('Helvetica').text(`    ${activity.instructions}`);
+        });
         doc.moveDown(0.5);
       }
 
@@ -99,25 +110,27 @@ router.get('/:lessonId/pdf', protect, requireTeacher, async (req, res) => {
               doc.fontSize(10).font('Helvetica').text(`    ${opt}`);
             });
           }
-          doc.fontSize(10).font('Helvetica-Oblique').text(`    Answer: ${q.answer}`);
+          doc.fontSize(10).font('Helvetica-Oblique').text(`    Answer: ${q.correctAnswer || q.answer}`);
           doc.moveDown(0.2);
         });
         doc.moveDown(0.3);
       }
 
       // Discussion prompts
-      if (data.discussion_prompts?.length) {
+      if (data.discussionPrompts?.length || data.discussion_prompts?.length) {
+        const prompts = data.discussionPrompts || data.discussion_prompts;
         doc.fontSize(12).font('Helvetica-Bold').text('Discussion Prompts:');
-        data.discussion_prompts.forEach((p) => {
+        prompts.forEach((p) => {
           doc.fontSize(11).font('Helvetica').text(`  • ${p}`);
         });
         doc.moveDown(0.5);
       }
 
       // Extension activities
-      if (data.extension_activities?.length) {
+      if (data.extensionActivities?.length || data.extension_activities?.length) {
+        const extensions = data.extensionActivities || data.extension_activities;
         doc.fontSize(12).font('Helvetica-Bold').text('Extension Activities:');
-        data.extension_activities.forEach((a) => {
+        extensions.forEach((a) => {
           doc.fontSize(11).font('Helvetica').text(`  • ${a}`);
         });
         doc.moveDown(0.5);
@@ -139,6 +152,9 @@ router.get('/:lessonId/pdf', protect, requireTeacher, async (req, res) => {
 
     doc.end();
   } catch (err) {
+    if (isHttpError(err) && !res.headersSent) {
+      return res.status(err.status).json({ error: err.message });
+    }
     // Only send JSON error if headers haven't been sent yet
     if (!res.headersSent) {
       res.status(500).json({ error: err.message });
