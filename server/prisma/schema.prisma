@@ -22,6 +22,7 @@ model User {
   quizAttempts     QuizAttempt[]
   diagnosticAttempts DiagnosticAttempt[]
   engagementEvents EngagementEvent[]
+  authoredEdits    LessonEdit[]       @relation("TeacherEdits")
 }
 
 enum Role {
@@ -78,6 +79,7 @@ model Lesson {
   translationCache TranslationCache[]
   quizAttempts     QuizAttempt[]
   engagementEvents EngagementEvent[]
+  edits            LessonEdit[]
 }
 
 enum LessonStatus {
@@ -253,4 +255,45 @@ model TranslationCache {
   createdAt  DateTime     @default(now())
 
   @@unique([lessonId, level, targetLang])
+}
+
+// ─── Teacher Feedback Loop (Phase 1: AI vs Final Edits) ──────────────────────
+// Captures section-level edits so we can build a proprietary dataset of how
+// teachers modify Claude-generated lessons. Each row = one section decision.
+model LessonEdit {
+  id        String   @id @default(cuid())
+  lessonId  String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id])
+  teacherId String
+  teacher   User     @relation("TeacherEdits", fields: [teacherId], references: [id])
+
+  level     ReadingLevel
+  section   LessonSection
+  editType  LessonEditType
+
+  aiVersion    Json    // Verbatim Claude output for this section at generation time
+  humanVersion Json?   // What the teacher actually saved (null if REJECTED)
+  charDelta    Int     @default(0)   // |stringify(human) - stringify(ai)| for fast filtering
+
+  createdAt DateTime @default(now())
+
+  @@index([lessonId])
+  @@index([teacherId])
+  @@index([section, editType])
+}
+
+enum LessonSection {
+  TITLE
+  OVERVIEW
+  MAIN_CONTENT
+  KEY_VOCABULARY
+  ACTIVITIES
+  QUIZ
+}
+
+enum LessonEditType {
+  ACCEPTED_AS_IS
+  MODIFIED
+  REJECTED
+  REGENERATED
 }
