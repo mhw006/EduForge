@@ -124,6 +124,8 @@ async function main() {
       update: {
         title:        lessonContent.title || spec.title,
         status:       'READY',
+        publishedAt:  new Date(),
+        publishedById: demoClass.teacherId,
         foundational: lessonContent.foundational,
         gradeLevel:   lessonContent.gradeLevel,
         advanced:     lessonContent.advanced,
@@ -134,6 +136,8 @@ async function main() {
         standard:     spec.standard,
         title:        lessonContent.title || spec.title,
         status:       'READY',
+        publishedAt:  new Date(),
+        publishedById: demoClass.teacherId,
         foundational: lessonContent.foundational,
         gradeLevel:   lessonContent.gradeLevel,
         advanced:     lessonContent.advanced,

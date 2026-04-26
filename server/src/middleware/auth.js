@@ -40,8 +40,9 @@ async function requireAuth(req, res, next) {
     return next();
   }
 
-  // Dev bypass — pick demo teacher unless caller asked for student via header
-  if (!hasRealClerkKeys) {
+  const { userId } = hasRealClerkKeys ? getAuth(req) : { userId: null };
+
+  if (!userId && isDemoAuthAllowed()) {
     const demoId = req.headers['x-demo-user'] === 'student' ? 'demo_student_001' : 'demo_teacher_001';
     req.user = await prisma.user.findUnique({ where: { id: demoId } });
     if (!req.user) return res.status(500).json({ error: 'Demo user missing — run `npm run seed`' });
@@ -49,7 +50,6 @@ async function requireAuth(req, res, next) {
     return next();
   }
 
-  const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   let user = await prisma.user.findUnique({ where: { id: userId } });

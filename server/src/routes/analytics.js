@@ -48,6 +48,12 @@ router.get('/:classId', requireTeacher, async (req, res) => {
       _count: { id: true },
     });
 
+    const mathDistribution = await prisma.learnerProfile.groupBy({
+      by: ['mathLevel'],
+      where: { userId: { in: studentIds } },
+      _count: { id: true },
+    });
+
     const studentActivity = await Promise.all(
       classRecord.enrollments.map(async (enrollment) => {
         const sid = enrollment.userId;
@@ -97,6 +103,7 @@ router.get('/:classId', requireTeacher, async (req, res) => {
       engagementCounts: engagementCounts.map((e) => ({ eventType: e.eventType, count: e._count.id })),
       quizStats: quizStats.map((q) => ({ level: q.level, avgScore: Math.round((q._avg.score || 0) * 100) / 100, attempts: q._count.id })),
       readingLevelDistribution: profileDistribution.map((p) => ({ level: p.readingLevel, count: p._count.id })),
+      mathLevelDistribution: mathDistribution.map((p) => ({ level: p.mathLevel, count: p._count.id })),
       studentActivity,
       lessonEngagement,
     });
