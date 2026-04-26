@@ -176,23 +176,24 @@ function decodeHtml(str) {
   return el.value
 }
 
+// Module-level voice cache — survives component unmount/remount on level changes.
+const _voiceCache = { voices: [] }
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+  const _syncVoices = () => {
+    const v = window.speechSynthesis.getVoices()
+    if (v.length > 0) _voiceCache.voices = v
+  }
+  _syncVoices()
+  window.speechSynthesis.addEventListener('voiceschanged', _syncVoices)
+}
+
 function LessonRenderer({ lesson, profile }) {
   const content = lesson?.content
   const [speaking, setSpeaking] = useState(false)
   const utteranceRef = useRef(null)
-  const voicesRef = useRef([])
 
   useEffect(() => {
-    function loadVoices() {
-      const v = window.speechSynthesis?.getVoices() || []
-      if (v.length > 0) voicesRef.current = v
-    }
-    loadVoices()
-    window.speechSynthesis?.addEventListener('voiceschanged', loadVoices)
-    return () => {
-      window.speechSynthesis?.removeEventListener('voiceschanged', loadVoices)
-      window.speechSynthesis?.cancel()
-    }
+    return () => window.speechSynthesis?.cancel()
   }, [])
 
   if (!content) {
@@ -230,7 +231,8 @@ function LessonRenderer({ lesson, profile }) {
     utterance.lang = targetLang
 
     const langPrefix = targetLang.split('-')[0].toLowerCase()
-    const match = voicesRef.current.find((v) => v.lang.toLowerCase().startsWith(langPrefix))
+    const voices = _voiceCache.voices.length > 0 ? _voiceCache.voices : (window.speechSynthesis?.getVoices() || [])
+    const match = voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix))
     if (match) utterance.voice = match
 
     utterance.onend = () => setSpeaking(false)
