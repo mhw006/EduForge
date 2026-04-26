@@ -3,7 +3,7 @@ import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import AssignmentBreakdown from './pages/AssignmentBreakdown'
 import StudyMode from './pages/StudyMode'
-import BonfireProgress from './pages/BonfireProgress'
+import StudentView from './pages/StudentView'
 
 export default function App() {
   return (
@@ -17,7 +17,7 @@ export default function App() {
           <NavLink to="/dashboard">Teacher Dashboard</NavLink>
           <NavLink to="/lesson-planner">Lesson Planner</NavLink>
           <NavLink to="/adapt-studio">Adapt Studio</NavLink>
-          <NavLink to="/progress">Growth Tracker</NavLink>
+          <NavLink to="/student">Student View</NavLink>
         </nav>
       </header>
 
@@ -26,10 +26,11 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/lesson-planner" element={<AssignmentBreakdown />} />
         <Route path="/adapt-studio" element={<StudyMode />} />
-        <Route path="/progress" element={<BonfireProgress />} />
+        <Route path="/student" element={<StudentView />} />
 
         <Route path="/assignment" element={<AssignmentBreakdown />} />
         <Route path="/study-mode" element={<StudyMode />} />
+        <Route path="/progress" element={<StudentView />} />
       </Routes>
     </div>
   )
