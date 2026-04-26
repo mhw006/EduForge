@@ -6,10 +6,11 @@ import { adaptContent, getClassAnalytics, getClasses, createClass, getClassRoste
 
 // ─── Tab IDs ──────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'dashboard',   icon: '📊', label: 'Dashboard'    },
-  { id: 'lessonforge', icon: '🧠', label: 'LessonForge'  },
-  { id: 'classes',     icon: '🏫', label: 'Classes'      },
-  { id: 'adapt',       icon: '⚒️', label: 'The Anvil'    },
+  { id: 'dashboard',   icon: '📊', label: 'Dashboard'   },
+  { id: 'lessonforge', icon: '🧠', label: 'LessonForge' },
+  { id: 'classes',     icon: '🏫', label: 'Classes'     },
+  { id: 'adapt',       icon: '⚒️', label: 'The Anvil'  },
+  { id: 'help',        icon: '❓', label: 'Help'        },
 ]
 
 const READING_LEVELS = ['FOUNDATIONAL', 'GRADE_LEVEL', 'ADVANCED']
@@ -1370,14 +1371,14 @@ function ClassesTab() {
                         Red = needs support · Blue = grade level · Green = advanced. Use the dropdowns to override a student's lesson level.
                       </p>
                       <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                        <table className="roster-table">
                           <thead>
-                            <tr style={{ borderBottom: '1px solid var(--border-subtle, #2a2a2a)', textAlign: 'left' }}>
-                              <th style={{ padding: '6px 8px', fontWeight: 600 }}>Student</th>
-                              <th style={{ padding: '6px 8px', fontWeight: 600 }}>Reading</th>
-                              <th style={{ padding: '6px 8px', fontWeight: 600 }}>Math</th>
-                              <th style={{ padding: '6px 8px', fontWeight: 600 }}>Science</th>
-                              <th style={{ padding: '6px 8px', fontWeight: 600 }}>Override level</th>
+                            <tr>
+                              <th>Student</th>
+                              <th>Reading</th>
+                              <th>Math</th>
+                              <th>Science</th>
+                              <th>Override</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1385,59 +1386,60 @@ function ClassesTab() {
                               const rLevel = s.currentProfile?.readingLevel || null
                               const mLevel = s.currentProfile?.mathLevel || null
                               const overrideKey = `${cls.id}:${s.userId}`
+                              const needsSupport = s.reading?.inferredLevel === 'FOUNDATIONAL' || s.math?.inferredLevel === 'BELOW_GRADE'
                               return (
-                                <tr key={s.userId} style={{ borderBottom: '1px solid var(--border-subtle, #1a1a1a)' }}>
-                                  <td style={{ padding: '8px 8px' }}>
-                                    <span>{s.email}</span>
-                                    {(s.reading?.inferredLevel === 'FOUNDATIONAL' || s.math?.inferredLevel === 'BELOW_GRADE') && (
-                                      <span style={{ marginLeft: '6px', fontSize: '0.75em', color: '#f87171' }}>⚠ needs support</span>
+                                <tr key={s.userId}>
+                                  <td>
+                                    <span style={{ display: 'block', fontWeight: 500 }}>{s.email}</span>
+                                    {needsSupport && (
+                                      <span style={{ fontSize: '0.75em', color: '#f87171' }}>⚠ needs support</span>
                                     )}
                                   </td>
-                                  <td style={{ padding: '8px 8px' }}>
+                                  <td>
                                     {s.reading ? (
-                                      <span style={{ color: levelColor(s.reading.inferredLevel) }}>
-                                        {fmtLevel(s.reading.inferredLevel)}
-                                        <small style={{ display: 'block', color: '#6b7280' }}>{s.reading.score}/{s.reading.totalQuestions}</small>
-                                      </span>
-                                    ) : <span className="sv-muted">No diagnostic</span>}
+                                      <>
+                                        <span style={{ color: levelColor(s.reading.inferredLevel), fontWeight: 500 }}>{fmtLevel(s.reading.inferredLevel)}</span>
+                                        <small style={{ display: 'block', color: 'var(--muted)' }}>{s.reading.score}/{s.reading.totalQuestions}</small>
+                                      </>
+                                    ) : <span className="sv-muted" style={{ fontSize: '0.82em' }}>No diagnostic</span>}
                                   </td>
-                                  <td style={{ padding: '8px 8px' }}>
+                                  <td>
                                     {s.math ? (
-                                      <span style={{ color: levelColor(s.math.inferredLevel) }}>
-                                        {fmtLevel(s.math.inferredLevel)}
-                                        <small style={{ display: 'block', color: '#6b7280' }}>{s.math.score}/{s.math.totalQuestions}</small>
-                                      </span>
-                                    ) : <span className="sv-muted">No diagnostic</span>}
+                                      <>
+                                        <span style={{ color: levelColor(s.math.inferredLevel), fontWeight: 500 }}>{fmtLevel(s.math.inferredLevel)}</span>
+                                        <small style={{ display: 'block', color: 'var(--muted)' }}>{s.math.score}/{s.math.totalQuestions}</small>
+                                      </>
+                                    ) : <span className="sv-muted" style={{ fontSize: '0.82em' }}>No diagnostic</span>}
                                   </td>
-                                  <td style={{ padding: '8px 8px' }}>
+                                  <td>
                                     {s.science ? (
-                                      <span style={{ color: levelColor(s.science.inferredLevel) }}>
-                                        {fmtLevel(s.science.inferredLevel)}
-                                        <small style={{ display: 'block', color: '#6b7280' }}>{s.science.score}/{s.science.totalQuestions}</small>
-                                      </span>
-                                    ) : <span className="sv-muted">No diagnostic</span>}
+                                      <>
+                                        <span style={{ color: levelColor(s.science.inferredLevel), fontWeight: 500 }}>{fmtLevel(s.science.inferredLevel)}</span>
+                                        <small style={{ display: 'block', color: 'var(--muted)' }}>{s.science.score}/{s.science.totalQuestions}</small>
+                                      </>
+                                    ) : <span className="sv-muted" style={{ fontSize: '0.82em' }}>No diagnostic</span>}
                                   </td>
-                                  <td style={{ padding: '8px 8px' }}>
-                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                      <label style={{ fontSize: '0.8em', color: '#9ca3af' }}>
+                                  <td>
+                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                      <label style={{ fontSize: '0.78em', color: 'var(--muted)', display: 'grid', gap: '3px' }}>
                                         Reading
                                         <select
                                           value={rLevel || ''}
                                           disabled={data.overriding === `${overrideKey}:readingLevel`}
                                           onChange={e => handleOverride(cls.id, s.userId, 'readingLevel', e.target.value)}
-                                          style={{ display: 'block', marginTop: '2px', fontSize: '0.85em' }}
+                                          style={{ fontSize: '0.9em', padding: '5px 8px' }}
                                         >
                                           <option value="">— keep —</option>
                                           {READING_LEVELS.map(l => <option key={l} value={l}>{fmtLevel(l)}</option>)}
                                         </select>
                                       </label>
-                                      <label style={{ fontSize: '0.8em', color: '#9ca3af' }}>
+                                      <label style={{ fontSize: '0.78em', color: 'var(--muted)', display: 'grid', gap: '3px' }}>
                                         Math
                                         <select
                                           value={mLevel || ''}
                                           disabled={data.overriding === `${overrideKey}:mathLevel`}
                                           onChange={e => handleOverride(cls.id, s.userId, 'mathLevel', e.target.value)}
-                                          style={{ display: 'block', marginTop: '2px', fontSize: '0.85em' }}
+                                          style={{ fontSize: '0.9em', padding: '5px 8px' }}
                                         >
                                           <option value="">— keep —</option>
                                           {MATH_LEVELS.map(l => <option key={l} value={l}>{fmtLevel(l)}</option>)}
@@ -1463,116 +1465,123 @@ function ClassesTab() {
   )
 }
 
-// ─── Sidebar FAQ ─────────────────────────────────────────────────────────────
-const FAQ_ITEMS = [
+// ─── Help & Glossary Tab ─────────────────────────────────────────────────────
+const FAQ_SECTIONS = [
   {
-    q: 'What is a Diagnostic?',
-    a: 'A short 13-question placement quiz students take in Reading, Math, or Science. Results set the student\'s level (Foundational → Grade Level → Advanced) so EduForge knows which version of a lesson to show them.',
+    section: 'Student Levels & Diagnostics',
+    items: [
+      { q: 'What is a Diagnostic?',        a: 'A 13-question placement quiz students take in Reading, Math, or Science. Results set their level (Foundational → Grade Level → Advanced) so EduForge serves the right version of every lesson automatically.' },
+      { q: 'What does "Foundational" mean?', a: 'The student scored below 40% on a diagnostic. Their lessons are simplified — shorter sentences, key vocabulary highlighted, more scaffolding. This is the support tier.' },
+      { q: 'What is Grade Level?',           a: 'The middle tier (40–79%). Students receive the standard lesson version. Most students land here before any diagnostic is taken.' },
+      { q: 'What is Advanced?',              a: 'Students scored 80%+ and receive enriched content — more depth, higher-order questions, and less hand-holding.' },
+      { q: 'What is "Below Grade" (Math)?',  a: 'The math equivalent of Foundational. Students who scored below 40% on the math diagnostic. Use the Classes tab to override their lesson level if your observation differs.' },
+    ],
   },
   {
-    q: 'What does "Foundational" mean?',
-    a: 'A student scored below 40% on a diagnostic. Their lessons are simplified — shorter sentences, key vocabulary highlighted, more scaffolding. Think of it as the support tier.',
+    section: 'Dashboard Metrics',
+    items: [
+      { q: 'What is the Teacher Rewrite Hotspot?',   a: 'Every time you edit a section of a generated lesson instead of accepting it, EduForge logs the change. The hotspot is whichever section you\'ve rewritten most — it pinpoints where AI drafts need the most correction for your class.' },
+      { q: 'What is the Support Watchlist?',         a: 'The count of students who scored Foundational (reading) or Below Grade (math) on their latest diagnostic. Open the Classes tab to see who they are and manually override their lesson level.' },
+      { q: 'What is a Reading-Level Mix?',            a: 'A breakdown of how many students are in each reading tier based on diagnostics — e.g. "Foundational (3) · Grade Level (12) · Advanced (5)". Use it to decide how much scaffolding your next lesson needs.' },
+      { q: 'What is a Math-Level Mix?',              a: 'Same as reading-level mix but for math (Below Grade / Grade Level / Advanced). Helps you plan how much math scaffolding to add in LessonForge.' },
+      { q: 'What is Top Student Behavior?',          a: 'The most common in-lesson action across the class — language switching, audio toggling, bandwidth change, or quiz start. Tells you which accessibility features your students actually rely on.' },
+      { q: 'What are Recommended Actions?',          a: 'Actions ranked by Claude based on live class data: diagnostic scores, quiz results, which sections you rewrote, and how students engage with lessons. They refresh each time you load the dashboard.' },
+      { q: 'What is Lowest Performing Level?',       a: 'The reading tier where quiz scores are lowest across the class. If "Foundational" appears, your Foundational-tier students are struggling with quizzes and may need extra lesson support.' },
+      { q: 'What is the Classroom Snapshot?',        a: 'A quick count of key loop metrics: published lessons, diagnostics completed, AI edits logged, quiz attempts, engagement events, and students tracked. Shows how active your closed loop is.' },
+    ],
   },
   {
-    q: 'What is Grade Level?',
-    a: 'The middle tier. Students scored 40–79% and receive the standard lesson version. Most students start here.',
-  },
-  {
-    q: 'What is Advanced?',
-    a: 'Students scored 80%+ and receive enriched content — more depth, higher-order questions, and less scaffolding.',
-  },
-  {
-    q: 'What is the Teacher Rewrite Hotspot?',
-    a: 'Every time you edit a section of an AI-generated lesson instead of accepting it, EduForge logs the change. The hotspot is the section you\'ve changed most often — it shows where the AI drafts need the most human correction for your class.',
-  },
-  {
-    q: 'What is the Closed-Loop / Feedback Loop?',
-    a: 'The cycle where student diagnostic results adapt lessons → teachers edit AI drafts → those edits improve future generation → students retake diagnostics. Every action feeds data back into the system.',
-  },
-  {
-    q: 'What is LessonForge?',
-    a: 'The AI lesson generator. You enter a topic or learning standard and EduForge generates three reading-level versions of the lesson (Foundational, Grade Level, Advanced) with vocabulary, activities, and a quiz — all in one go.',
-  },
-  {
-    q: 'What does "Accept" / "Accept All" do?',
-    a: 'Marks an AI-generated section as correct as-is without editing it. This logs a positive signal to the feedback loop — the system learns what it got right. Accept All logs every section across all three levels at once.',
-  },
-  {
-    q: 'What is a Reading-Level Mix?',
-    a: 'A count of how many students are in each reading tier based on their latest diagnostic. E.g. "Foundational (3) · Grade Level (12) · Advanced (5)" tells you 3 students need extra support in your next lesson.',
-  },
-  {
-    q: 'What is a Math-Level Mix?',
-    a: 'Same idea as reading-level mix but for math. Math uses Below Grade / Grade Level / Advanced. Use this to decide how much scaffolding to add when forging a math lesson.',
-  },
-  {
-    q: 'What is the Support Watchlist count?',
-    a: 'The number of students who scored Foundational (reading) or Below Grade (math) on their latest diagnostic. Open the Classes tab to see their names and override their lesson level manually.',
-  },
-  {
-    q: 'What are Recommended Actions / Next Moves?',
-    a: 'Actions ranked by Claude based on your class\'s live data — diagnostic scores, quiz results, which lesson sections you rewrote, and how students use lessons. They update each time you load the dashboard.',
-  },
-  {
-    q: 'What is Top Student Behavior?',
-    a: 'The most common action students perform inside lessons — switching language, turning on audio, changing bandwidth, or starting a quiz. It tells you which accessibility features your class actually relies on.',
-  },
-  {
-    q: 'What is the Join Code?',
-    a: 'A short code students enter in the Student View → My Classes tab to enroll in your class. You can also share the invite link which auto-fills the code.',
-  },
-  {
-    q: 'What is Bandwidth Mode?',
-    a: 'A student setting that controls how media-rich their lesson is. Full = images and audio. Reduced = fewer images. Text Only = plain text only, for low-connectivity situations.',
-  },
-  {
-    q: 'What is The Anvil?',
-    a: 'The adapt studio. Paste any topic and set a learner profile — language, reading level, accessibility needs — and EduForge tempers the content live without saving a permanent lesson.',
+    section: 'Tools & Features',
+    items: [
+      { q: 'What is LessonForge?',                  a: 'The AI lesson generator. Enter a topic or learning standard and EduForge produces three reading-level versions (Foundational, Grade Level, Advanced) with vocabulary, activities, and a quiz — all at once.' },
+      { q: 'What does Accept / Accept All do?',     a: 'Marks an AI-generated section as correct without editing it. This logs a positive signal to the feedback loop so the system learns what it got right. Accept All logs every section across all three tiers at once.' },
+      { q: 'What is the Closed-Loop?',              a: 'The full cycle: students take diagnostics → lessons adapt to their level → you edit AI drafts → those edits train future generation → students retake diagnostics. Every action feeds the system.' },
+      { q: 'What is The Anvil?',                    a: 'The adapt studio tab. Paste any topic, set a learner profile (language, reading level, accessibility), and EduForge tempers the content live — useful for previewing how a lesson will look for a specific student.' },
+      { q: 'What is the Join Code?',                a: 'A short code students enter in the Student View → My Classes tab to enroll in your class. You can also share the invite link which auto-fills the code.' },
+      { q: 'What is Bandwidth Mode?',               a: 'A student-controlled setting for how media-rich their lesson is. Full = all images and audio. Reduced = fewer images. Text Only = plain text, designed for low-connectivity situations.' },
+      { q: 'What is a Level Override?',             a: 'In the Classes tab, teachers can manually set a student\'s reading or math level regardless of their diagnostic score. Useful when you know a student\'s real ability doesn\'t match their test result.' },
+    ],
   },
 ]
 
-function SidebarFAQ() {
-  const [open, setOpen] = useState(false)
-  const [expandedIndex, setExpandedIndex] = useState(null)
+function HelpTab() {
+  const [openSections, setOpenSections] = useState({ 0: true })
+  const [openItems, setOpenItems] = useState({})
 
-  function toggle(i) {
-    setExpandedIndex(prev => prev === i ? null : i)
+  function toggleSection(i) {
+    setOpenSections(prev => ({ ...prev, [i]: !prev[i] }))
+  }
+
+  function toggleItem(key) {
+    setOpenItems(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
   return (
-    <div className="sidebar-faq">
-      <button
-        type="button"
-        className="sidebar-faq-toggle"
-        onClick={() => { setOpen(o => !o); setExpandedIndex(null) }}
-        aria-expanded={open}
-      >
-        <span>❓</span>
-        <span>Help & Glossary</span>
-        <span style={{ marginLeft: 'auto', fontSize: '0.8em', opacity: 0.7 }}>{open ? '▴' : '▾'}</span>
-      </button>
+    <div>
+      <section className="bf-card" style={{ marginBottom: '20px' }}>
+        <h2 style={{ marginTop: 0, marginBottom: '6px' }}>Help & Glossary</h2>
+        <p className="sv-muted" style={{ margin: 0 }}>
+          Plain-English explanations of every term and metric you'll see in EduForge.
+          Click a section header to expand it, then click any term for the full explanation.
+        </p>
+      </section>
 
-      {open && (
-        <div className="sidebar-faq-panel">
-          <p className="sidebar-faq-intro">Tap any term to expand it.</p>
-          {FAQ_ITEMS.map((item, i) => (
-            <div key={i} className="sidebar-faq-item">
-              <button
-                type="button"
-                className="sidebar-faq-question"
-                onClick={() => toggle(i)}
-                aria-expanded={expandedIndex === i}
-              >
-                <span>{item.q}</span>
-                <span style={{ fontSize: '0.75em', opacity: 0.6, flexShrink: 0 }}>{expandedIndex === i ? '▴' : '▾'}</span>
-              </button>
-              {expandedIndex === i && (
-                <p className="sidebar-faq-answer">{item.a}</p>
-              )}
+      {FAQ_SECTIONS.map((section, si) => (
+        <section key={si} className="bf-card" style={{ marginBottom: '12px', padding: 0, overflow: 'hidden' }}>
+          <button
+            type="button"
+            onClick={() => toggleSection(si)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              width: '100%', padding: '16px 20px', background: 'none', border: 'none',
+              cursor: 'pointer', color: 'var(--text)', textAlign: 'left',
+            }}
+          >
+            <strong style={{ fontSize: '1rem' }}>{section.section}</strong>
+            <span style={{ fontSize: '0.8em', color: 'var(--muted)', flexShrink: 0 }}>
+              {section.items.length} terms {openSections[si] ? '▴' : '▾'}
+            </span>
+          </button>
+
+          {openSections[si] && (
+            <div style={{ borderTop: '1px solid var(--line)' }}>
+              {section.items.map((item, ii) => {
+                const key = `${si}-${ii}`
+                const isOpen = openItems[key]
+                return (
+                  <div key={ii} style={{ borderBottom: ii < section.items.length - 1 ? '1px solid rgba(151,171,228,0.1)' : 'none' }}>
+                    <button
+                      type="button"
+                      onClick={() => toggleItem(key)}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        gap: '12px', width: '100%', padding: '12px 20px',
+                        background: isOpen ? 'rgba(255,159,67,0.06)' : 'none',
+                        border: 'none', cursor: 'pointer', color: isOpen ? '#ffd9b0' : 'var(--text)',
+                        textAlign: 'left', transition: 'background 0.15s, color 0.15s',
+                      }}
+                    >
+                      <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>{item.q}</span>
+                      <span style={{ fontSize: '0.75em', color: 'var(--muted)', flexShrink: 0 }}>
+                        {isOpen ? '▴' : '▾'}
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <p style={{
+                        margin: 0, padding: '0 20px 14px 20px',
+                        fontSize: '0.875rem', lineHeight: 1.65,
+                        color: 'var(--muted)',
+                      }}>
+                        {item.a}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
-          ))}
-        </div>
-      )}
+          )}
+        </section>
+      ))}
     </div>
   )
 }
@@ -1588,6 +1597,7 @@ export default function TeacherView() {
       case 'lessonforge': return <LessonForgeTab />
       case 'classes':     return <ClassesTab />
       case 'adapt':       return <AdaptTab />
+      case 'help':        return <HelpTab />
       default:            return null
     }
   }
@@ -1607,9 +1617,6 @@ export default function TeacherView() {
             <span className="sv-tab-label">{tab.label}</span>
           </button>
         ))}
-        <div style={{ marginTop: 'auto', paddingTop: '16px' }}>
-          <SidebarFAQ />
-        </div>
       </nav>
 
       <main className="sv-content">
