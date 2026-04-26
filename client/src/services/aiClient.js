@@ -98,6 +98,11 @@ export async function getTranslationLanguages(demoUser = 'student') {
   return handleResponse(response)
 }
 
+export async function getMyDiagnosticSummary(demoUser = 'student') {
+  const response = await apiFetch('/diagnostics/me/summary', { demoUser })
+  return handleResponse(response)
+}
+
 // recommendNextFocusTask: returns a static suggestion for the dashboard.
 // The original /focus/recommend endpoint never existed; this avoids the round-trip + 404.
 export async function recommendNextFocusTask() {

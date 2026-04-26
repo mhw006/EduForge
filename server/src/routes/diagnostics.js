@@ -88,6 +88,56 @@ router.post('/domains/:domain/submit', protect, requireStudent, async (req, res)
   }
 });
 
+router.get('/me/summary', protect, requireStudent, async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const attempts = await prisma.diagnosticAttempt.findMany({
+      where: { userId },
+      orderBy: { completedAt: 'desc' },
+      include: {
+        class: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    const latestByDomain = new Map();
+    for (const attempt of attempts) {
+      if (!latestByDomain.has(attempt.domain)) {
+        latestByDomain.set(attempt.domain, attempt);
+      }
+    }
+
+    res.json({
+      latestReading: latestByDomain.get('READING')
+        ? {
+            attemptId: latestByDomain.get('READING').id,
+            classId: latestByDomain.get('READING').classId,
+            className: latestByDomain.get('READING').class?.name || null,
+            score: latestByDomain.get('READING').score,
+            totalQuestions: latestByDomain.get('READING').totalQuestions,
+            inferredLevel: latestByDomain.get('READING').inferredReadingLevel,
+            completedAt: latestByDomain.get('READING').completedAt,
+          }
+        : null,
+      latestMath: latestByDomain.get('MATH')
+        ? {
+            attemptId: latestByDomain.get('MATH').id,
+            classId: latestByDomain.get('MATH').classId,
+            className: latestByDomain.get('MATH').class?.name || null,
+            score: latestByDomain.get('MATH').score,
+            totalQuestions: latestByDomain.get('MATH').totalQuestions,
+            inferredLevel: latestByDomain.get('MATH').inferredMathLevel,
+            completedAt: latestByDomain.get('MATH').completedAt,
+          }
+        : null,
+      totalAttempts: attempts.length,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/classes/:classId/summary', protect, requireTeacher, async (req, res) => {
   try {
     const { classId } = req.params;

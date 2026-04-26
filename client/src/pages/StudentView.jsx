@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import BonfireWidget from '../components/BonfireWidget'
 import {
   getClasses,
+  getMyDiagnosticSummary,
   getLesson,
   getLessonsByClass,
   getProfile,
@@ -74,6 +75,35 @@ function getLanguageLabel(code) {
     code?.toUpperCase() ||
     'English'
   )
+}
+
+function formatReadingLevel(level) {
+  return {
+    FOUNDATIONAL: 'Foundational',
+    GRADE_LEVEL: 'Grade Level',
+    ADVANCED: 'Advanced',
+  }[level] || level || 'Unknown'
+}
+
+function formatMathLevel(level) {
+  return {
+    BELOW_GRADE: 'Below Grade',
+    GRADE_LEVEL: 'Grade Level',
+    ADVANCED: 'Advanced',
+  }[level] || level || 'Unknown'
+}
+
+function formatContentFormat(value) {
+  return {
+    MIXED_MEDIA: 'Mixed media',
+    TEXT_FOCUSED: 'Text-focused',
+    AUDIO_FOCUSED: 'Audio-focused',
+  }[value] || value || 'Standard'
+}
+
+function formatDiagnosticDate(value) {
+  if (!value) return 'No recent attempt'
+  return new Date(value).toLocaleDateString()
 }
 
 function useBandwidthSuggestion(profile, onSuggest) {
@@ -166,6 +196,58 @@ function ProfileToolbar({ profile, languages, saving, onChange }) {
       </label>
 
       {saving && <span className="student-saving">Saving...</span>}
+    </section>
+  )
+}
+
+function DiagnosticSupportBanner({ profile, lesson, diagnostics }) {
+  const readingDiagnostic = lesson?.appliedProfile?.diagnosticReadingLevel || profile?.diagnosticReadingLevel
+  const mathDiagnostic = lesson?.appliedProfile?.diagnosticMathLevel || profile?.diagnosticMathLevel
+  const preferredContentFormat = lesson?.appliedProfile?.preferredContentFormat || profile?.preferredContentFormat
+
+  if (!readingDiagnostic && !mathDiagnostic && !preferredContentFormat) return null
+
+  const readingAligned = readingDiagnostic && lesson?.appliedProfile?.readingLevel === readingDiagnostic
+
+  return (
+    <section className="bf-card" style={{ marginBottom: '12px' }}>
+      <h3 style={{ marginTop: 0 }}>Diagnostic-driven support</h3>
+      <p className="sv-muted" style={{ marginBottom: '0.75rem' }}>
+        EduForge is adapting this experience using your latest learner profile and diagnostic signals.
+      </p>
+      <ul className="item-list compact">
+        {readingDiagnostic && (
+          <li>
+            <strong>Reading placement</strong>
+            <span>{formatReadingLevel(readingDiagnostic)}</span>
+            <small>
+              {diagnostics?.latestReading
+                ? `${diagnostics.latestReading.score}/${diagnostics.latestReading.totalQuestions} on ${formatDiagnosticDate(diagnostics.latestReading.completedAt)}${diagnostics.latestReading.className ? ` • ${diagnostics.latestReading.className}` : ''}`
+                : readingAligned
+                  ? 'Current lesson support matches your latest reading diagnostic.'
+                  : 'Current lesson support is still being aligned to your latest reading diagnostic.'}
+            </small>
+          </li>
+        )}
+        {mathDiagnostic && (
+          <li>
+            <strong>Math readiness</strong>
+            <span>{formatMathLevel(mathDiagnostic)}</span>
+            <small>
+              {diagnostics?.latestMath
+                ? `${diagnostics.latestMath.score}/${diagnostics.latestMath.totalQuestions} on ${formatDiagnosticDate(diagnostics.latestMath.completedAt)}${diagnostics.latestMath.className ? ` • ${diagnostics.latestMath.className}` : ''}`
+                : 'This signal helps teachers decide how much math scaffolding to add next.'}
+            </small>
+          </li>
+        )}
+        {preferredContentFormat && (
+          <li>
+            <strong>Recommended content mode</strong>
+            <span>{formatContentFormat(preferredContentFormat)}</span>
+            <small>Delivery can shift based on your diagnostic and accessibility profile.</small>
+          </li>
+        )}
+      </ul>
     </section>
   )
 }
@@ -358,7 +440,10 @@ function LessonRenderer({ lesson, profile }) {
       <div className="student-status-row">
         <span>{lesson.title}</span>
         {lesson.appliedProfile?.readingLevel && (
-          <span>{{FOUNDATIONAL:'Foundational',GRADE_LEVEL:'Grade Level',ADVANCED:'Advanced'}[lesson.appliedProfile.readingLevel] || lesson.appliedProfile.readingLevel}</span>
+          <span>{formatReadingLevel(lesson.appliedProfile.readingLevel)}</span>
+        )}
+        {lesson.appliedProfile?.diagnosticReadingLevel && lesson.appliedProfile.readingLevel === lesson.appliedProfile.diagnosticReadingLevel && (
+          <span>Diagnostic-aligned</span>
         )}
         <span>{translationStatusLabel}</span>
         {content._textOnly && <span>Text-only mode</span>}
@@ -438,6 +523,7 @@ function LessonsTab() {
   const [selectedLessonId, setSelectedLessonId] = useState(null)
   const [adaptedLesson, setAdaptedLesson] = useState(null)
   const [profile, setProfile] = useState(null)
+  const [diagnostics, setDiagnostics] = useState(null)
   const [languages, setLanguages] = useState(DEFAULT_LANGUAGES)
   const [loading, setLoading] = useState(true)
   const [lessonLoading, setLessonLoading] = useState(false)
@@ -450,9 +536,10 @@ function LessonsTab() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [profileResult, classResult, languageResult] = await Promise.all([
+        const [profileResult, classResult, diagnosticsResult, languageResult] = await Promise.all([
           getProfile('student'),
           getClasses('student'),
+          getMyDiagnosticSummary('student').catch(() => null),
           getTranslationLanguages('student').catch(() => DEFAULT_LANGUAGES),
         ])
 
@@ -460,6 +547,7 @@ function LessonsTab() {
         const loadedClasses = classResult.classes || []
         setProfile(loadedProfile)
         setClasses(loadedClasses)
+        setDiagnostics(diagnosticsResult)
         setLanguages(Array.isArray(languageResult) ? languageResult : DEFAULT_LANGUAGES)
 
         const allLessons = (
@@ -575,6 +663,7 @@ function LessonsTab() {
 
       <main className="student-lesson-panel">
         {error && <p style={{ color: '#fca5a5' }}>{error}</p>}
+        <DiagnosticSupportBanner profile={profile} lesson={adaptedLesson} diagnostics={diagnostics} />
         {lessonLoading ? (
           <p className="sv-muted">Adapting lesson for your profile...</p>
         ) : (
