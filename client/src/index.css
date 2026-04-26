@@ -1383,3 +1383,23 @@ button {
   font-size: 12px;
   border-radius: 8px;
 }
+
+/* ─── Standalone Reading Diagnostic (DiagnosticLauncher) ────────────────────── */
+.sv-diagnostic-question {
+  border: 1px solid rgba(92, 114, 255, 0.22);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(10, 18, 48, 0.55);
+  display: grid;
+  gap: 8px;
+}
+
+.sv-diagnostic-question strong {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* ─── Dashboard card ─────────────────────────────────────────────────────────── */
+.dashboard-card {
+  min-height: 120px;
+}

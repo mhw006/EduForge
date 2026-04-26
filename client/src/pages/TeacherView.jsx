@@ -688,6 +688,7 @@ function LessonForgeTab() {
               <h3 style={{ color: tabs.find(t => t.key === activeTab)?.color }}>
                 {currentTier.levelLabel}{' '}
                 <small style={{ opacity: 0.6, fontSize: '0.8em' }}>{currentTier.lexileRange}</small>
+                <span style={{ marginLeft: '0.75rem', fontSize: '0.7em', padding: '3px 9px', borderRadius: '999px', background: 'rgba(255,159,67,0.15)', color: '#ffd4a6', border: '1px solid rgba(255,159,67,0.3)', verticalAlign: 'middle' }}>AI-generated</span>
               </h3>
 
               <h4 style={{ display: 'flex', alignItems: 'center' }}>

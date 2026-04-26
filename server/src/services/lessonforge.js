@@ -3,7 +3,7 @@ const { normalizeLessonPayload } = require('../lib/lesson-schema');
 const { buildContextBlock } = require('./standards-retrieval');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = process.env.LESSONFORGE_MODEL || 'claude-sonnet-4-5-20250929';
+const MODEL = process.env.LESSONFORGE_MODEL || 'claude-sonnet-4-6';
 const MAX_TOKENS = Number(process.env.LESSONFORGE_MAX_TOKENS || 5200);
 const DETAIL_LEVEL = process.env.LESSONFORGE_DETAIL_LEVEL || 'demo';
 
