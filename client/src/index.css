@@ -903,6 +903,155 @@ button {
 
 .item-list.compact small { color: var(--muted); }
 
+.student-lessons-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.student-lesson-sidebar,
+.student-lesson-panel {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(10, 18, 38, 0.7);
+  padding: 16px;
+}
+
+.student-lesson-sidebar h3 {
+  margin: 16px 0 10px;
+}
+
+.student-toolbar {
+  display: grid;
+  gap: 10px;
+}
+
+.student-toolbar label {
+  display: grid;
+  gap: 5px;
+  color: #d7e3ff;
+  font-size: 13px;
+}
+
+.student-toolbar select {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(8, 15, 31, 0.86);
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+.student-toggle {
+  grid-template-columns: auto 1fr !important;
+  align-items: center;
+}
+
+.student-toggle input {
+  accent-color: var(--accent);
+}
+
+.student-saving {
+  color: #ffd7b4;
+  font-size: 12px;
+}
+
+.student-bandwidth-banner {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 12px;
+  background: rgba(80, 52, 10, 0.42);
+}
+
+.student-bandwidth-banner button {
+  border: 1px solid rgba(255, 215, 180, 0.28);
+  border-radius: 10px;
+  background: rgba(12, 21, 43, 0.72);
+  color: var(--text);
+  padding: 7px 9px;
+  cursor: pointer;
+}
+
+.student-lesson-article {
+  display: grid;
+  gap: 18px;
+  line-height: 1.75;
+}
+
+.student-lesson-article h2,
+.student-lesson-article h3 {
+  margin: 0;
+}
+
+.student-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.student-status-row span {
+  border: 1px solid rgba(255, 168, 93, 0.28);
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(45, 30, 16, 0.58);
+  color: #ffd4a6;
+  font-size: 12px;
+}
+
+.student-overview {
+  margin: 0;
+  color: #dbe7ff;
+}
+
+.student-main-content {
+  white-space: pre-wrap;
+}
+
+.student-quiz {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.student-quiz > li {
+  border: 1px solid rgba(146, 166, 223, 0.2);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(9, 19, 38, 0.7);
+}
+
+.student-quiz ul {
+  margin-top: 8px;
+}
+
+.student-font-small { font-size: 14px; }
+.student-font-medium { font-size: 16px; }
+.student-font-large { font-size: 18px; }
+.student-font-xlarge { font-size: 20px; }
+
+.student-high-contrast {
+  background: #050505;
+  color: #ffff66;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.student-high-contrast .sv-muted,
+.student-high-contrast small,
+.student-high-contrast .student-overview {
+  color: #ffff99;
+}
+
+.student-dyslexia {
+  font-family: Verdana, Tahoma, sans-serif;
+  letter-spacing: 0.02em;
+  line-height: 1.95;
+}
+
 /* Calendar */
 .sv-calendar {
   display: grid;
@@ -1008,6 +1157,10 @@ button {
   .sv-content { padding: 20px 16px 48px; }
 
   .sv-two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .student-lessons-layout {
     grid-template-columns: 1fr;
   }
 
