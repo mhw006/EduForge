@@ -179,7 +179,12 @@ function LessonRenderer({ lesson, profile }) {
     if (!content.mainContent) return
     window.speechSynthesis.cancel()
     const utterance = new SpeechSynthesisUtterance(`${content.overview || ''}\n\n${content.mainContent}`)
-    utterance.lang = profile.language === 'es' ? 'es-ES' : profile.language === 'fr' ? 'fr-FR' : profile.language === 'zh' ? 'zh-CN' : 'en-US'
+    const TTS_LANG_MAP = {
+      es: 'es-ES', fr: 'fr-FR', zh: 'zh-CN', pt: 'pt-BR',
+      ar: 'ar-SA', ko: 'ko-KR', vi: 'vi-VN', hi: 'hi-IN',
+      ru: 'ru-RU', de: 'de-DE', ja: 'ja-JP', it: 'it-IT',
+    }
+    utterance.lang = TTS_LANG_MAP[profile.language] || 'en-US'
     utterance.onend = () => setSpeaking(false)
     utterance.onerror = () => setSpeaking(false)
     utteranceRef.current = utterance

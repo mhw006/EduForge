@@ -50,15 +50,15 @@ function getDeepLErrorMessage(err) {
 async function requestDeepLTranslation(text, targetLang) {
   const response = await axios.post(
     DEEPL_API_URL,
-    new URLSearchParams({
-      auth_key: process.env.DEEPL_API_KEY,
-      text,
+    {
+      text: [text],
       target_lang: getDeepLLanguage(targetLang),
       tag_handling: 'html',
-    }),
+    },
     {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `DeepL-Auth-Key ${process.env.DEEPL_API_KEY}`,
+        'Content-Type': 'application/json',
       },
     }
   );
