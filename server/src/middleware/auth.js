@@ -31,11 +31,16 @@ const clerk = hasRealClerkKeys
   ? (isDemoAuthAllowed() ? (req, _res, next) => next() : clerkMiddleware())
   : (req, _res, next) => next();
 
+const DEMO_USERS = {
+  demo_teacher_001: { id: 'demo_teacher_001', role: 'TEACHER', email: 'teacher@demo.eduforge.app', name: 'Demo Teacher' },
+  demo_student_001: { id: 'demo_student_001', role: 'STUDENT', email: 'student@demo.eduforge.app', name: 'Demo Student' },
+};
+
 async function requireAuth(req, res, next) {
   const requestedDemoUser = getRequestedDemoUser(req);
   if (requestedDemoUser) {
-    req.user = await prisma.user.findUnique({ where: { id: requestedDemoUser } });
-    if (!req.user) return res.status(500).json({ error: 'Demo user missing - run `npm run seed`' });
+    // Use hardcoded demo user — no DB required, works even if Supabase is unreachable.
+    req.user = DEMO_USERS[requestedDemoUser] || DEMO_USERS['demo_student_001'];
     req.auth = { userId: req.user.id };
     return next();
   }
@@ -44,8 +49,7 @@ async function requireAuth(req, res, next) {
 
   if (!userId && isDemoAuthAllowed()) {
     const demoId = req.headers['x-demo-user'] === 'student' ? 'demo_student_001' : 'demo_teacher_001';
-    req.user = await prisma.user.findUnique({ where: { id: demoId } });
-    if (!req.user) return res.status(500).json({ error: 'Demo user missing — run `npm run seed`' });
+    req.user = DEMO_USERS[demoId];
     req.auth = { userId: req.user.id };
     return next();
   }

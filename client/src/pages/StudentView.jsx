@@ -169,13 +169,30 @@ function ProfileToolbar({ profile, languages, saving, onChange }) {
   )
 }
 
+function decodeHtml(str) {
+  if (!str) return ''
+  const el = document.createElement('textarea')
+  el.innerHTML = str
+  return el.value
+}
+
 function LessonRenderer({ lesson, profile }) {
   const content = lesson?.content
   const [speaking, setSpeaking] = useState(false)
   const utteranceRef = useRef(null)
+  const voicesRef = useRef([])
 
   useEffect(() => {
-    return () => window.speechSynthesis?.cancel()
+    function loadVoices() {
+      const v = window.speechSynthesis?.getVoices() || []
+      if (v.length > 0) voicesRef.current = v
+    }
+    loadVoices()
+    window.speechSynthesis?.addEventListener('voiceschanged', loadVoices)
+    return () => {
+      window.speechSynthesis?.removeEventListener('voiceschanged', loadVoices)
+      window.speechSynthesis?.cancel()
+    }
   }, [])
 
   if (!content) {
@@ -206,33 +223,21 @@ function LessonRenderer({ lesson, profile }) {
       ru: 'ru-RU', de: 'de-DE', ja: 'ja-JP', it: 'it-IT',
     }
     const targetLang = TTS_LANG_MAP[profile.language] || 'en-US'
-    const text = `${content.overview || ''}\n\n${content.mainContent}`
+    // Decode HTML entities (DeepL tag_handling:html encodes apostrophes etc.)
+    const text = `${decodeHtml(content.overview)}\n\n${decodeHtml(content.mainContent)}`
 
-    function doSpeak(voices) {
-      const utterance = new SpeechSynthesisUtterance(text)
-      utterance.lang = targetLang
-      // Explicitly pick a voice matching the language prefix so browser
-      // doesn't silently fall back to the default English voice.
-      const langPrefix = targetLang.split('-')[0].toLowerCase()
-      const match = voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix))
-      if (match) utterance.voice = match
-      utterance.onend = () => setSpeaking(false)
-      utterance.onerror = () => setSpeaking(false)
-      utteranceRef.current = utterance
-      setSpeaking(true)
-      window.speechSynthesis.speak(utterance)
-    }
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = targetLang
 
-    const voices = window.speechSynthesis.getVoices()
-    if (voices.length > 0) {
-      doSpeak(voices)
-    } else {
-      // Chrome loads voices async; wait for the event then speak.
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.onvoiceschanged = null
-        doSpeak(window.speechSynthesis.getVoices())
-      }
-    }
+    const langPrefix = targetLang.split('-')[0].toLowerCase()
+    const match = voicesRef.current.find((v) => v.lang.toLowerCase().startsWith(langPrefix))
+    if (match) utterance.voice = match
+
+    utterance.onend = () => setSpeaking(false)
+    utterance.onerror = () => setSpeaking(false)
+    utteranceRef.current = utterance
+    setSpeaking(true)
+    window.speechSynthesis.speak(utterance)
   }
 
   function stopSpeaking() {
@@ -260,7 +265,7 @@ function LessonRenderer({ lesson, profile }) {
 
       <h2>{content.levelLabel || lesson.title}</h2>
       {content.lexileRange && <p className="sv-muted">{content.lexileRange}</p>}
-      {content.overview && <p className="student-overview">{content.overview}</p>}
+      {content.overview && <p className="student-overview">{decodeHtml(content.overview)}</p>}
 
       {terms.length > 0 && (
         <section>
@@ -279,7 +284,7 @@ function LessonRenderer({ lesson, profile }) {
       {content.mainContent && (
         <section>
           <h3>Lesson Content</h3>
-          <div className="student-main-content">{content.mainContent}</div>
+          <div className="student-main-content" dangerouslySetInnerHTML={{ __html: content.mainContent }} />
         </section>
       )}
 
