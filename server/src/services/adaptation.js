@@ -137,8 +137,12 @@ async function buildAdaptedLesson({
     standard: lesson.standard,
     appliedProfile: {
       readingLevel: profile.readingLevel,
+      diagnosticReadingLevel: profile.diagnosticReadingLevel,
+      diagnosticMathLevel: profile.diagnosticMathLevel,
       language: profile.language,
       bandwidthMode: profile.bandwidthMode,
+      preferredContentFormat: profile.preferredContentFormat,
+      recommendedProfilePatch: profile.recommendedProfilePatch,
       ttsProvider: profile.ttsProvider,
     },
     content,

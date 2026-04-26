@@ -98,6 +98,30 @@ export async function getTranslationLanguages(demoUser = 'student') {
   return handleResponse(response)
 }
 
+export async function getMyDiagnosticSummary(demoUser = 'student') {
+  const response = await apiFetch('/diagnostics/me/summary', { demoUser })
+  return handleResponse(response)
+}
+
+export async function getDiagnosticCatalog(demoUser = 'student') {
+  const response = await apiFetch('/diagnostics/catalog', { demoUser })
+  return handleResponse(response)
+}
+
+export async function getDiagnosticQuestions(domain, demoUser = 'student') {
+  const response = await apiFetch(`/diagnostics/domains/${domain}/questions`, { demoUser })
+  return handleResponse(response)
+}
+
+export async function submitDiagnostic({ domain, classId, responses }, demoUser = 'student') {
+  const response = await apiFetch(`/diagnostics/domains/${domain}/submit`, {
+    method: 'POST',
+    demoUser,
+    body: { classId, responses },
+  })
+  return handleResponse(response)
+}
+
 // recommendNextFocusTask: returns a static suggestion for the dashboard.
 // The original /focus/recommend endpoint never existed; this avoids the round-trip + 404.
 export async function recommendNextFocusTask() {

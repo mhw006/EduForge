@@ -2,9 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import BonfireWidget from '../components/BonfireWidget'
 import {
   getClasses,
+  getDiagnosticCatalog,
+  getDiagnosticQuestions,
+  getMyDiagnosticSummary,
   getLesson,
   getLessonsByClass,
   getProfile,
+  submitDiagnostic,
   getTranslationLanguages,
   updateProfile,
   logEngagementEvent,
@@ -76,6 +80,35 @@ function getLanguageLabel(code) {
     code?.toUpperCase() ||
     'English'
   )
+}
+
+function formatReadingLevel(level) {
+  return {
+    FOUNDATIONAL: 'Foundational',
+    GRADE_LEVEL: 'Grade Level',
+    ADVANCED: 'Advanced',
+  }[level] || level || 'Unknown'
+}
+
+function formatMathLevel(level) {
+  return {
+    BELOW_GRADE: 'Below Grade',
+    GRADE_LEVEL: 'Grade Level',
+    ADVANCED: 'Advanced',
+  }[level] || level || 'Unknown'
+}
+
+function formatContentFormat(value) {
+  return {
+    MIXED_MEDIA: 'Mixed media',
+    TEXT_FOCUSED: 'Text-focused',
+    AUDIO_FOCUSED: 'Audio-focused',
+  }[value] || value || 'Standard'
+}
+
+function formatDiagnosticDate(value) {
+  if (!value) return 'No recent attempt'
+  return new Date(value).toLocaleDateString()
 }
 
 function useBandwidthSuggestion(profile, onSuggest) {
@@ -168,6 +201,207 @@ function ProfileToolbar({ profile, languages, saving, onChange }) {
       </label>
 
       {saving && <span className="student-saving">Saving...</span>}
+    </section>
+  )
+}
+
+function DiagnosticSupportBanner({ profile, lesson, diagnostics }) {
+  const readingDiagnostic = lesson?.appliedProfile?.diagnosticReadingLevel || profile?.diagnosticReadingLevel
+  const mathDiagnostic = lesson?.appliedProfile?.diagnosticMathLevel || profile?.diagnosticMathLevel
+  const preferredContentFormat = lesson?.appliedProfile?.preferredContentFormat || profile?.preferredContentFormat
+
+  if (!readingDiagnostic && !mathDiagnostic && !preferredContentFormat) return null
+
+  const readingAligned = readingDiagnostic && lesson?.appliedProfile?.readingLevel === readingDiagnostic
+
+  return (
+    <section className="bf-card" style={{ marginBottom: '12px' }}>
+      <h3 style={{ marginTop: 0 }}>Diagnostic-driven support</h3>
+      <p className="sv-muted" style={{ marginBottom: '0.75rem' }}>
+        EduForge is adapting this experience using your latest learner profile and diagnostic signals.
+      </p>
+      <ul className="item-list compact">
+        {readingDiagnostic && (
+          <li>
+            <strong>Reading placement</strong>
+            <span>{formatReadingLevel(readingDiagnostic)}</span>
+            <small>
+              {diagnostics?.latestReading
+                ? `${diagnostics.latestReading.score}/${diagnostics.latestReading.totalQuestions} on ${formatDiagnosticDate(diagnostics.latestReading.completedAt)}${diagnostics.latestReading.className ? ` • ${diagnostics.latestReading.className}` : ''}`
+                : profile?.diagnosticReadingLevel
+                  ? 'Current lesson support matches the learner profile seeded from your latest available placement signal.'
+                  : readingAligned
+                  ? 'Current lesson support matches your latest reading diagnostic.'
+                  : 'Current lesson support is still being aligned to your latest reading diagnostic.'}
+            </small>
+          </li>
+        )}
+        {mathDiagnostic && (
+          <li>
+            <strong>Math readiness</strong>
+            <span>{formatMathLevel(mathDiagnostic)}</span>
+            <small>
+              {diagnostics?.latestMath
+                ? `${diagnostics.latestMath.score}/${diagnostics.latestMath.totalQuestions} on ${formatDiagnosticDate(diagnostics.latestMath.completedAt)}${diagnostics.latestMath.className ? ` • ${diagnostics.latestMath.className}` : ''}`
+                : 'This signal helps teachers decide how much math scaffolding to add next.'}
+            </small>
+          </li>
+        )}
+        {preferredContentFormat && (
+          <li>
+            <strong>Recommended content mode</strong>
+            <span>{formatContentFormat(preferredContentFormat)}</span>
+            <small>Delivery can shift based on your diagnostic and accessibility profile.</small>
+          </li>
+        )}
+      </ul>
+    </section>
+  )
+}
+
+function DiagnosticLauncher({ classes, diagnostics, loading, profile, onComplete }) {
+  const [catalog, setCatalog] = useState([])
+  const [questionSet, setQuestionSet] = useState(null)
+  const [responses, setResponses] = useState({})
+  const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || '')
+  const [error, setError] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!selectedClassId && classes[0]?.id) setSelectedClassId(classes[0].id)
+  }, [classes, selectedClassId])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadCatalog() {
+      try {
+        const result = await getDiagnosticCatalog('student')
+        if (!cancelled) setCatalog(result.diagnostics || [])
+      } catch {
+        if (!cancelled) setCatalog([])
+      }
+    }
+    loadCatalog()
+    return () => { cancelled = true }
+  }, [])
+
+  async function startReadingDiagnostic() {
+    setError(null)
+    setResponses({})
+    try {
+      const result = await getDiagnosticQuestions('READING', 'student')
+      setQuestionSet(result)
+    } catch (err) {
+      setError(err.message || 'Could not load the reading diagnostic.')
+    }
+  }
+
+  async function submitReadingDiagnostic() {
+    if (!questionSet || !selectedClassId) return
+    const unanswered = questionSet.questions.filter((question) => !responses[question.id])
+    if (unanswered.length > 0) {
+      setError('Answer every question before submitting the diagnostic.')
+      return
+    }
+
+    setSubmitting(true)
+    setError(null)
+    try {
+      await submitDiagnostic({
+        domain: 'READING',
+        classId: selectedClassId,
+        responses: questionSet.questions.map((question) => ({
+          questionId: question.id,
+          selectedOptionId: responses[question.id],
+        })),
+      }, 'student')
+
+      setQuestionSet(null)
+      setResponses({})
+      await onComplete?.()
+    } catch (err) {
+      setError(err.message || 'Could not submit the diagnostic.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const readingCompleted = Boolean(diagnostics?.latestReading)
+  const hasClassContext = classes.length > 0
+
+  return (
+    <section className="bf-card" style={{ marginBottom: '12px' }}>
+      <h3 style={{ marginTop: 0 }}>Reading diagnostic</h3>
+      <p className="sv-muted" style={{ marginBottom: '0.75rem' }}>
+        Run a quick placement check to update the learner profile that powers lesson adaptation.
+      </p>
+
+      {!questionSet ? (
+        <>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+            <span className="sv-muted">
+              {readingCompleted
+                ? `Latest reading diagnostic: ${formatReadingLevel(diagnostics.latestReading.inferredLevel)}`
+                : profile?.diagnosticReadingLevel
+                  ? `Current profile is set to ${formatReadingLevel(profile.diagnosticReadingLevel)}. Run a fresh diagnostic to validate or update it.`
+                  : 'No reading diagnostic completed yet'}
+            </span>
+            {catalog.find((item) => item.domain === 'READING') && (
+              <button className="bf-btn" type="button" onClick={startReadingDiagnostic} disabled={loading || !hasClassContext}>
+                {readingCompleted ? 'Retake reading diagnostic' : 'Start reading diagnostic'}
+              </button>
+            )}
+          </div>
+
+          {classes.length > 0 ? (
+            <label style={{ display: 'grid', gap: '6px', maxWidth: '280px' }}>
+              <span className="sv-muted">Apply results to class</span>
+              <select value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)}>
+                {classes.map((cls) => (
+                  <option key={cls.id} value={cls.id}>{cls.name}</option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="sv-muted" style={{ margin: 0 }}>
+              Join a class to unlock diagnostic attempts and adaptive lesson updates.
+            </p>
+          )}
+        </>
+      ) : (
+        <div style={{ display: 'grid', gap: '10px' }}>
+          <p style={{ margin: 0 }}><strong>{questionSet.title}</strong></p>
+          {questionSet.questions.map((question) => (
+            <div key={question.id} className="sv-diagnostic-question">
+              <strong>{question.prompt}</strong>
+              <div style={{ display: 'grid', gap: '6px', marginTop: '6px' }}>
+                {question.options.map((option) => (
+                  <label key={option.id} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                    <input
+                      type="radio"
+                      name={question.id}
+                      value={option.id}
+                      checked={responses[question.id] === option.id}
+                      onChange={() => setResponses((prev) => ({ ...prev, [question.id]: option.id }))}
+                    />
+                    <span>{option.text}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button className="bf-btn" type="button" onClick={submitReadingDiagnostic} disabled={submitting}>
+              {submitting ? 'Submitting…' : 'Submit diagnostic'}
+            </button>
+            <button className="bf-btn ghost" type="button" onClick={() => { setQuestionSet(null); setResponses({}); setError(null) }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && <p style={{ color: '#fca5a5', marginTop: '0.75rem' }}>{error}</p>}
     </section>
   )
 }
@@ -575,7 +809,10 @@ function LessonRenderer({ lesson, profile }) {
       <div className="student-status-row">
         <span>{lesson.title}</span>
         {lesson.appliedProfile?.readingLevel && (
-          <span>{{FOUNDATIONAL:'Foundational',GRADE_LEVEL:'Grade Level',ADVANCED:'Advanced'}[lesson.appliedProfile.readingLevel] || lesson.appliedProfile.readingLevel}</span>
+          <span>{formatReadingLevel(lesson.appliedProfile.readingLevel)}</span>
+        )}
+        {lesson.appliedProfile?.diagnosticReadingLevel && lesson.appliedProfile.readingLevel === lesson.appliedProfile.diagnosticReadingLevel && (
+          <span>Diagnostic-aligned</span>
         )}
         <span>{translationStatusLabel}</span>
         {content._textOnly && <span>Text-only mode</span>}
@@ -655,6 +892,7 @@ function LessonsTab() {
   const [selectedLessonId, setSelectedLessonId] = useState(null)
   const [adaptedLesson, setAdaptedLesson] = useState(null)
   const [profile, setProfile] = useState(null)
+  const [diagnostics, setDiagnostics] = useState(null)
   const [languages, setLanguages] = useState(DEFAULT_LANGUAGES)
   const [loading, setLoading] = useState(true)
   const [lessonLoading, setLessonLoading] = useState(false)
@@ -668,9 +906,10 @@ function LessonsTab() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [profileResult, classResult, languageResult] = await Promise.all([
+        const [profileResult, classResult, diagnosticsResult, languageResult] = await Promise.all([
           getProfile('student'),
           getClasses('student'),
+          getMyDiagnosticSummary('student').catch(() => null),
           getTranslationLanguages('student').catch(() => DEFAULT_LANGUAGES),
         ])
 
@@ -678,6 +917,7 @@ function LessonsTab() {
         const loadedClasses = classResult.classes || []
         setProfile(loadedProfile)
         setClasses(loadedClasses)
+        setDiagnostics(diagnosticsResult)
         setLanguages(Array.isArray(languageResult) ? languageResult : DEFAULT_LANGUAGES)
 
         const allLessons = (
@@ -698,6 +938,19 @@ function LessonsTab() {
 
     loadInitialData()
   }, [])
+
+  async function refreshDiagnosticContext() {
+    try {
+      const [profileResult, diagnosticsResult] = await Promise.all([
+        getProfile('student'),
+        getMyDiagnosticSummary('student').catch(() => null),
+      ])
+      setProfile(profileResult.profile)
+      setDiagnostics(diagnosticsResult)
+    } catch (err) {
+      setError(err.message || 'Could not refresh learner profile.')
+    }
+  }
 
   useEffect(() => {
     setDiagnosticResult(null)
@@ -816,7 +1069,14 @@ function LessonsTab() {
         )}
 
         {error && <p style={{ color: '#fca5a5' }}>{error}</p>}
-
+        <DiagnosticLauncher
+          classes={classes}
+          diagnostics={diagnostics}
+          loading={lessonLoading}
+          profile={profile}
+          onComplete={refreshDiagnosticContext}
+        />
+        <DiagnosticSupportBanner profile={profile} lesson={adaptedLesson} diagnostics={diagnostics} />
         {lessonLoading ? (
           <p className="sv-muted">
             {diagnosticResult ? 'Applying adaptation...' : 'Adapting lesson for your profile...'}
