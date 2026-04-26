@@ -227,9 +227,132 @@ function scoreDiagnostic(domain, responses) {
   };
 }
 
+// ─── Lesson-specific Diagnostic Helpers ──────────────────────────────────────
+
+const FALLBACK_LESSON_QUESTIONS = [
+  {
+    id: 'diag-q1',
+    question: 'Which statement best describes the main idea of a passage?',
+    options: [
+      'A) A minor detail from one sentence',
+      'B) The central point the whole text supports',
+      'C) A vocabulary term from the glossary',
+      'D) The title only',
+    ],
+    correctAnswer: 'B',
+    skill: 'main idea',
+  },
+  {
+    id: 'diag-q2',
+    question: 'A character sighs and stares out the window. What can you best infer?',
+    options: [
+      'A) The character is excited about a trip',
+      'B) The character wants to eat lunch',
+      'C) The character is feeling upset or distracted',
+      'D) The character is looking for something lost',
+    ],
+    correctAnswer: 'C',
+    skill: 'inference',
+  },
+  {
+    id: 'diag-q3',
+    question: 'What strategy best helps you figure out an unknown word without a dictionary?',
+    options: [
+      'A) Guess randomly and keep reading',
+      'B) Use context clues from surrounding sentences',
+      'C) Copy the sentence to ask a friend later',
+      'D) Replace it with any simpler word',
+    ],
+    correctAnswer: 'B',
+    skill: 'vocabulary',
+  },
+];
+
+const DEFAULT_SKILLS = ['main idea', 'inference', 'vocabulary', 'comprehension', 'analysis'];
+
+function buildDiagnosticFromLesson(lesson) {
+  const quiz = lesson?.gradeLevel?.quiz;
+
+  if (!quiz || !Array.isArray(quiz) || quiz.length === 0) {
+    return {
+      title: lesson?.title || 'Quick Learning Check',
+      questions: FALLBACK_LESSON_QUESTIONS,
+    };
+  }
+
+  const questions = quiz.slice(0, 3).map((q, i) => ({
+    id: `diag-q${i + 1}`,
+    question: q.question,
+    options: Array.isArray(q.options) ? q.options : [],
+    correctAnswer: q.correctAnswer || q.answer || 'A',
+    skill: DEFAULT_SKILLS[i] || 'comprehension',
+  }));
+
+  // Pad to 3 if the quiz had fewer questions
+  while (questions.length < 3) {
+    const fallback = FALLBACK_LESSON_QUESTIONS[questions.length];
+    questions.push({ ...fallback, id: `diag-q${questions.length + 1}` });
+  }
+
+  return {
+    title: lesson.title || 'Quick Learning Check',
+    questions,
+  };
+}
+
+function getPublicQuestions(questions) {
+  return questions.map(({ correctAnswer, ...rest }) => rest);
+}
+
+function scoreLessonDiagnostic(questions, answers) {
+  const safeAnswers = (answers && typeof answers === 'object') ? answers : {};
+  let score = 0;
+  const skillsMissed = [];
+
+  questions.forEach((q) => {
+    const studentAnswer = String(safeAnswers[q.id] || '').toUpperCase().trim();
+    const correct = studentAnswer === String(q.correctAnswer || '').toUpperCase().trim();
+    if (correct) {
+      score++;
+    } else {
+      skillsMissed.push(q.skill || 'comprehension');
+    }
+  });
+
+  return { score, totalQuestions: questions.length, skillsMissed };
+}
+
+function determineReadingLevelFromScore(score, totalQuestions) {
+  if (score <= 1) return 'FOUNDATIONAL';
+  if (score < totalQuestions) return 'GRADE_LEVEL';
+  return 'ADVANCED';
+}
+
+function buildAdaptationReason({ score, totalQuestions, newReadingLevel, skillsMissed }) {
+  const levelLabels = {
+    FOUNDATIONAL: 'Foundational',
+    GRADE_LEVEL: 'Grade Level',
+    ADVANCED: 'Advanced',
+  };
+  const levelLabel = levelLabels[newReadingLevel] || newReadingLevel;
+
+  if (!skillsMissed || skillsMissed.length === 0) {
+    return `Your lesson was adapted to ${levelLabel} based on your diagnostic score of ${score} out of ${totalQuestions}.`;
+  }
+
+  const uniqueSkills = [...new Set(skillsMissed)];
+  const skillList = uniqueSkills.join(' and ');
+  return `Your lesson was adapted to ${levelLabel} because the diagnostic showed support is needed with ${skillList}.`;
+}
+
 module.exports = {
   DIAGNOSTIC_DOMAINS,
   getDiagnosticCatalog,
   getQuestionSet,
   scoreDiagnostic,
+  buildDiagnosticFromLesson,
+  getPublicQuestions,
+  scoreLessonDiagnostic,
+  determineReadingLevelFromScore,
+  buildAdaptationReason,
 };
