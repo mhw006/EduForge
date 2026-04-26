@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import BonfireWidget from '../components/BonfireWidget'
 import DashboardCard from '../components/DashboardCard'
 import TaskChecklist from '../components/TaskChecklist'
-import { adaptContent, getClasses, getDashboardData, getLessonsByClass, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, logLessonEdit, getEditSummary, searchStandards } from '../services/aiClient'
+import { adaptContent, getClassAnalytics, getClasses, getDashboardData, getLessonsByClass, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, logLessonEdit, getEditSummary, searchStandards } from '../services/aiClient'
 
 // ─── Tab IDs ──────────────────────────────────────────────────────────────────
 const TABS = [
@@ -11,31 +11,143 @@ const TABS = [
   { id: 'adapt',       icon: '🎯', label: 'Adapt Studio' },
 ]
 
-// ─── Dashboard tab ────────────────────────────────────────────────────────────
-const accessibilityCoverage = [
-  { id: 'ac1', group: 'Multilingual learners',     coverage: '4/6 lessons adapted this week'       },
-  { id: 'ac2', group: 'IEP / 504 supports',        coverage: '3/6 lessons adapted this week'       },
-  { id: 'ac3', group: 'Foundational level students', coverage: '5/6 lessons adapted this week'    },
-]
-
 function summarizeStandard(standard) {
   if (!standard) return 'Standard ready for live differentiation'
   return standard.length > 110 ? `${standard.slice(0, 107)}...` : standard
 }
 
+function prettyLabel(value) {
+  if (!value) return 'None yet'
+  return value.replaceAll('_', ' ').toLowerCase()
+}
+
+function prettyEventLabel(value) {
+  if (!value) return 'No dominant pattern yet'
+  return {
+    VIEW: 'Lesson views',
+    QUIZ_START: 'Quiz starts',
+    QUIZ_COMPLETE: 'Quiz completions',
+    LANGUAGE_TOGGLE: 'Language switching',
+    TTS_TOGGLE: 'Audio support usage',
+    BANDWIDTH_CHANGE: 'Bandwidth changes',
+    EXPORT_PDF: 'PDF exports',
+  }[value] || prettyLabel(value)
+}
+
+function ClosedLoopOverviewCard({ analytics }) {
+  const metrics = analytics?.loopMetrics
+  if (!metrics) return <p className="sv-muted">Generate activity in class to unlock intelligence signals.</p>
+
+  const items = [
+    { label: 'Published lessons', value: metrics.publishedLessons },
+    { label: 'Diagnostics completed', value: metrics.diagnosticsCompleted },
+    { label: 'AI edits logged', value: metrics.aiEditsLogged },
+    { label: 'Quiz attempts', value: metrics.quizAttempts },
+    { label: 'Engagement events', value: metrics.engagementEvents },
+    { label: 'Students tracked', value: metrics.studentsTracked },
+  ]
+
+  return (
+    <div className="teacher-metric-grid">
+      {items.map((item) => (
+        <div key={item.label} className="teacher-metric-tile">
+          <small className="sv-muted">{item.label}</small>
+          <strong>{item.value ?? 0}</strong>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ClassInsightsCard({ analytics }) {
+  if (!analytics?.insights) return <p className="sv-muted">Insights will appear once students interact with lessons.</p>
+
+  const { insights, readingLevelDistribution, lessonEngagement } = analytics
+  const readingMix = readingLevelDistribution?.length
+    ? readingLevelDistribution.map((row) => `${prettyLabel(row.level)} (${row.count})`).join(' · ')
+    : 'No learner profiles yet'
+
+  return (
+    <ul className="item-list compact">
+      <li>
+        <strong>Most viewed lesson</strong>
+        <span>{insights.mostViewedLesson?.title || 'No lesson views yet'}</span>
+        <small>{insights.mostViewedLesson ? `${insights.mostViewedLesson.views} views` : 'Waiting on student traffic'}</small>
+      </li>
+      <li>
+        <strong>Lowest performing level</strong>
+        <span>{prettyLabel(insights.lowestPerformingLevel)}</span>
+        <small>{insights.avgQuizScoreOverall != null ? `Average quiz score: ${insights.avgQuizScoreOverall}%` : 'Publish a quiz-backed lesson to unlock performance insight'}</small>
+      </li>
+      <li>
+        <strong>Teacher rewrite hotspot</strong>
+        <span>{prettyLabel(insights.mostEditedSection)}</span>
+        <small>{analytics.editSectionSummary?.length ? 'AI vs final deltas are being tracked live' : 'No teacher feedback logged yet — accept or edit one generated section to start the loop'}</small>
+      </li>
+      <li>
+        <strong>Reading-level mix</strong>
+        <span>{readingMix}</span>
+        <small>{lessonEngagement?.length ? `${lessonEngagement.length} ready lessons in this class` : 'No ready lessons yet'}</small>
+      </li>
+    </ul>
+  )
+}
+
+function StudentSignalsCard({ analytics }) {
+  if (!analytics?.loopMetrics) {
+    return <p className="sv-muted">Student signals will appear after diagnostics, lesson opens, and quiz attempts.</p>
+  }
+
+  const topEvent = analytics.insights?.topEventType
+  const mathMix = analytics.mathLevelDistribution?.length
+    ? analytics.mathLevelDistribution.map((row) => `${prettyLabel(row.level)} (${row.count})`).join(' · ')
+    : 'No math profile data yet'
+
+  return (
+    <ul className="item-list compact">
+      <li>
+        <strong>Support watchlist</strong>
+        <span>{analytics.insights?.studentsNeedingSupport || 0} {analytics.insights?.studentsNeedingSupport === 1 ? 'student is' : 'students are'} currently flagged for foundational support</span>
+        <small>{analytics.loopMetrics.diagnosticsCompleted > 0 ? `${analytics.loopMetrics.diagnosticsCompleted} diagnostics completed` : 'Run a diagnostic to sharpen this signal'}</small>
+      </li>
+      <li>
+        <strong>Top student behavior</strong>
+        <span>{prettyEventLabel(topEvent)}</span>
+        <small>{analytics.loopMetrics.engagementEvents} engagement events captured across the class</small>
+      </li>
+      <li>
+        <strong>Math-level mix</strong>
+        <span>{mathMix}</span>
+        <small>{analytics.loopMetrics.studentsTracked} student profiles represented in this view</small>
+      </li>
+    </ul>
+  )
+}
+
+function RecommendedActionsCard({ analytics, recommendation }) {
+  const suggestions = [
+    ...(analytics?.recommendations || []),
+    recommendation?.recommendation || null,
+  ].filter(Boolean).slice(0, 4)
+
+  if (suggestions.length === 0) {
+    return <p className="sv-muted">Recommendations will appear after diagnostics, edits, and engagement data come in.</p>
+  }
+
+  return (
+    <ul className="item-list compact">
+      {suggestions.map((item, index) => (
+        <li key={`${index}-${item.slice(0, 20)}`}>
+          <strong>{index === 0 ? 'Highest priority' : `Next move ${index + 1}`}</strong>
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 // ─── Phase 1+3: Data Flywheel widget — AI vs Final teacher edits ─────────────
-function EditFlywheelWidget({ classId }) {
-  const [summary, setSummary] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!classId) { setLoading(false); return }
-    getEditSummary({ classId })
-      .then((s) => setSummary(s))
-      .catch(() => setSummary(null))
-      .finally(() => setLoading(false))
-  }, [classId])
-
+function EditFlywheelWidget({ summary, loading }) {
   if (loading) return <p className="sv-muted">Loading edit metrics…</p>
   if (!summary || summary.totalEdits === 0) {
     return (
@@ -84,7 +196,11 @@ function DashboardTab({ onNavigate }) {
   const [data,            setData]            = useState(null)
   const [recommendation,  setRecommendation]  = useState(null)
   const [curriculumQueue, setCurriculumQueue] = useState([])
+  const [classes,         setClasses]         = useState([])
   const [primaryClassId,  setPrimaryClassId]  = useState(null)
+  const [classAnalytics,  setClassAnalytics]  = useState(null)
+  const [editSummary,     setEditSummary]     = useState(null)
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [loading,         setLoading]         = useState(true)
 
   useEffect(() => {
@@ -103,12 +219,14 @@ function DashboardTab({ onNavigate }) {
 
         try {
           const classesResponse = await getClasses()
-          const classes = classesResponse?.classes || []
-          if (classes.length === 0) return
-          setPrimaryClassId(classes[0].id)
+          const nextClasses = classesResponse?.classes || []
+          setClasses(nextClasses)
+          if (nextClasses.length === 0) return
+          const defaultClassId = nextClasses[0].id
+          setPrimaryClassId(defaultClassId)
 
           const lessonResults = await Promise.all(
-            classes.map(async (cls) => {
+            nextClasses.map(async (cls) => {
               const lr = await getLessonsByClass(cls.id)
               return (lr?.lessons || []).map(l => ({
                 id: l.id, title: l.title,
@@ -131,6 +249,35 @@ function DashboardTab({ onNavigate }) {
     load()
   }, [])
 
+  useEffect(() => {
+    if (!primaryClassId) return
+
+    let cancelled = false
+    async function loadClassIntelligence() {
+      setAnalyticsLoading(true)
+      try {
+        const [analyticsResult, editResult] = await Promise.all([
+          getClassAnalytics(primaryClassId),
+          getEditSummary({ classId: primaryClassId }),
+        ])
+        if (!cancelled) {
+          setClassAnalytics(analyticsResult)
+          setEditSummary(editResult)
+        }
+      } catch {
+        if (!cancelled) {
+          setClassAnalytics(null)
+          setEditSummary(null)
+        }
+      } finally {
+        if (!cancelled) setAnalyticsLoading(false)
+      }
+    }
+
+    loadClassIntelligence()
+    return () => { cancelled = true }
+  }, [primaryClassId])
+
   const focusTasks = useMemo(() =>
     data?.todayFocusTasks?.map(t => ({ ...t, completed: t.done })) || [], [data])
 
@@ -142,6 +289,7 @@ function DashboardTab({ onNavigate }) {
   }
 
   const completed = taskState.filter(t => t.completed).length
+  const activeClassName = classes.find((cls) => cls.id === primaryClassId)?.name
 
   if (loading) return <p className="sv-muted">Loading dashboard…</p>
 
@@ -157,10 +305,49 @@ function DashboardTab({ onNavigate }) {
       </div>
 
       <p style={{ marginBottom: '1.25rem', color: 'var(--muted)' }}>
-        Welcome back, Teacher. Your live demo lane is ready: generate a lesson, publish it, then switch to the student view to show adaptation in real time.
+        Welcome back, Teacher. This dashboard turns classroom signals into next steps: what students need, what the AI got changed, and where to intervene next.
       </p>
 
+      {classes.length > 0 && (
+        <div style={{ marginBottom: '1rem', maxWidth: '280px' }}>
+          <label style={{ display: 'grid', gap: '6px' }}>
+            <span className="sv-muted">Class intelligence view</span>
+            <select value={primaryClassId || ''} onChange={(e) => setPrimaryClassId(e.target.value)}>
+              {classes.map((cls) => (
+                <option key={cls.id} value={cls.id}>{cls.name}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+
+      <section className="bf-card recommendation-strip" style={{ marginBottom: '12px' }}>
+        <h3>Closed-Loop Classroom Intelligence</h3>
+        <p>
+          {activeClassName
+            ? `EduForge is tracking how ${activeClassName} students respond to lessons, how teachers revise AI output, and what support to recommend next.`
+            : 'EduForge will surface classroom intelligence once a class is selected.'}
+        </p>
+        <span>Signals flow from diagnostics, adaptation, engagement, quizzes, and teacher feedback into one instructional loop.</span>
+      </section>
+
       <section className="dashboard-grid">
+        <DashboardCard title="Closed-Loop Overview">
+          <ClosedLoopOverviewCard analytics={classAnalytics} />
+        </DashboardCard>
+
+        <DashboardCard title="Recommended Next Actions">
+          <RecommendedActionsCard analytics={classAnalytics} recommendation={recommendation} />
+        </DashboardCard>
+
+        <DashboardCard title="Class Insights">
+          <ClassInsightsCard analytics={classAnalytics} />
+        </DashboardCard>
+
+        <DashboardCard title="Student Learning Signals">
+          <StudentSignalsCard analytics={classAnalytics} />
+        </DashboardCard>
+
         <DashboardCard
           title="Today's Teacher Actions"
           action={<small>{completed}/{taskState.length} completed</small>}
@@ -188,17 +375,6 @@ function DashboardTab({ onNavigate }) {
           </ul>
         </DashboardCard>
 
-        <DashboardCard title="Accessibility Coverage">
-          <ul className="item-list compact">
-            {accessibilityCoverage.map(item => (
-              <li key={item.id}>
-                <strong>{item.group}</strong>
-                <small>{item.coverage}</small>
-              </li>
-            ))}
-          </ul>
-        </DashboardCard>
-
         <DashboardCard title="Class Learning Momentum">
           <BonfireWidget
             progress={{
@@ -210,19 +386,9 @@ function DashboardTab({ onNavigate }) {
         </DashboardCard>
 
         <DashboardCard title="AI vs Final Edits (Data Flywheel)">
-          <EditFlywheelWidget classId={primaryClassId} />
+          <EditFlywheelWidget summary={editSummary} loading={analyticsLoading} />
         </DashboardCard>
       </section>
-
-      {recommendation && (
-        <section className="bf-card recommendation-strip" style={{ marginTop: '12px' }}>
-          <h3>Recommended Demo Move</h3>
-          <p>{recommendation.recommendation}</p>
-          <span style={{ color: 'var(--muted)', fontSize: '13px' }}>
-            Suggested support mode: {recommendation.mode}
-          </span>
-        </section>
-      )}
     </div>
   )
 }
