@@ -150,6 +150,20 @@ export async function getDiagnosticQuestions(domain, demoUser = 'student') {
   return handleResponse(response)
 }
 
+export async function getClassDiagnosticSummary(classId, demoUser = 'teacher') {
+  const response = await apiFetch(`/diagnostics/classes/${classId}/summary`, { demoUser })
+  return handleResponse(response)
+}
+
+export async function overrideStudentLevel(classId, studentId, { readingLevel, mathLevel } = {}, demoUser = 'teacher') {
+  const response = await apiFetch(`/diagnostics/classes/${classId}/students/${studentId}/override`, {
+    method: 'PATCH',
+    body: { readingLevel, mathLevel },
+    demoUser,
+  })
+  return handleResponse(response)
+}
+
 export async function submitDiagnostic({ domain, classId, responses }, demoUser = 'student') {
   const response = await apiFetch(`/diagnostics/domains/${domain}/submit`, {
     method: 'POST',

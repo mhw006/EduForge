@@ -185,6 +185,7 @@ router.get('/classes/:classId/summary', protect, requireTeacher, async (req, res
     const students = classRecord.enrollments.map((enrollment) => {
       const readingAttempt = latestByStudentAndDomain.get(`${enrollment.userId}:READING`) || null;
       const mathAttempt = latestByStudentAndDomain.get(`${enrollment.userId}:MATH`) || null;
+      const scienceAttempt = latestByStudentAndDomain.get(`${enrollment.userId}:SCIENCE`) || null;
 
       return {
         userId: enrollment.userId,
@@ -205,6 +206,14 @@ router.get('/classes/:classId/summary', protect, requireTeacher, async (req, res
               completedAt: mathAttempt.completedAt,
             }
           : null,
+        science: scienceAttempt
+          ? {
+              score: scienceAttempt.score,
+              totalQuestions: scienceAttempt.totalQuestions,
+              inferredLevel: scienceAttempt.inferredReadingLevel,
+              completedAt: scienceAttempt.completedAt,
+            }
+          : null,
         currentProfile: enrollment.user.profile,
       };
     });
@@ -215,6 +224,44 @@ router.get('/classes/:classId/summary', protect, requireTeacher, async (req, res
       students,
       totalAttempts: attempts.length,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PATCH /api/diagnostics/classes/:classId/students/:studentId/override ────
+// Teacher overrides a student's reading or math level for lesson adaptation
+router.patch('/classes/:classId/students/:studentId/override', protect, requireTeacher, async (req, res) => {
+  try {
+    const { classId, studentId } = req.params;
+    const teacherId = req.auth.userId;
+    const { readingLevel, mathLevel } = req.body;
+
+    const classRecord = await prisma.class.findUnique({ where: { id: classId } });
+    if (!classRecord || classRecord.teacherId !== teacherId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const enrollment = await prisma.enrollment.findUnique({
+      where: { userId_classId: { userId: studentId, classId } },
+    });
+    if (!enrollment) return res.status(404).json({ error: 'Student not enrolled in this class' });
+
+    const profileUpdates = {};
+    if (readingLevel) profileUpdates.readingLevel = readingLevel;
+    if (mathLevel) profileUpdates.mathLevel = mathLevel;
+
+    if (Object.keys(profileUpdates).length === 0) {
+      return res.status(400).json({ error: 'Provide readingLevel or mathLevel to override' });
+    }
+
+    const updatedProfile = await prisma.profile.upsert({
+      where: { userId: studentId },
+      update: profileUpdates,
+      create: { userId: studentId, ...profileUpdates },
+    });
+
+    res.json({ studentId, updated: profileUpdates, profile: updatedProfile });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

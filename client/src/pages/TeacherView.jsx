@@ -2,14 +2,30 @@ import { useEffect, useMemo, useState } from 'react'
 import BonfireWidget from '../components/BonfireWidget'
 import DashboardCard from '../components/DashboardCard'
 import TaskChecklist from '../components/TaskChecklist'
-import { adaptContent, getClassAnalytics, getClasses, createClass, getClassRoster, deleteClass, getDashboardData, getLessonsByClass, getLesson, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, publishLesson, unpublishLesson, logLessonEdit, deleteLesson } from '../services/aiClient'
+import { adaptContent, getClassAnalytics, getClasses, createClass, getClassRoster, deleteClass, getDashboardData, getLessonsByClass, getLesson, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, publishLesson, unpublishLesson, logLessonEdit, deleteLesson, getClassDiagnosticSummary, overrideStudentLevel } from '../services/aiClient'
 
 // ─── Tab IDs ──────────────────────────────────────────────────────────────────
 const TABS = [
   { id: 'dashboard',   icon: '📊', label: 'Dashboard'    },
   { id: 'lessonforge', icon: '🧠', label: 'LessonForge'  },
-  { id: 'adapt',       icon: '⚒️', label: 'The Anvil' },
+  { id: 'classes',     icon: '🏫', label: 'Classes'      },
+  { id: 'adapt',       icon: '⚒️', label: 'The Anvil'    },
 ]
+
+const READING_LEVELS = ['FOUNDATIONAL', 'GRADE_LEVEL', 'ADVANCED']
+const MATH_LEVELS    = ['BELOW_GRADE', 'GRADE_LEVEL', 'ADVANCED']
+
+function fmtLevel(val) {
+  if (!val) return '—'
+  return val.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+}
+
+function levelColor(level) {
+  if (!level) return '#6b7280'
+  if (level === 'FOUNDATIONAL' || level === 'BELOW_GRADE') return '#f87171'
+  if (level === 'ADVANCED') return '#4ade80'
+  return '#60a5fa'
+}
 
 function summarizeStandard(standard) {
   if (!standard) return 'Learning goal ready for live differentiation'
@@ -875,7 +891,7 @@ function LessonForgeTab() {
               </div>
             </div>
 
-            <div className="pill-row" style={{ marginTop: '1.5rem' }}>
+            <div className="pill-row" style={{ marginTop: '1.5rem', flexWrap: 'wrap', gap: '8px' }}>
               {tabs.map(({ key, label, color }) => (
                 <button
                   key={key} type="button"
@@ -886,6 +902,35 @@ function LessonForgeTab() {
                   {label}
                 </button>
               ))}
+              {savedLessonId && (
+                <button
+                  type="button"
+                  className="bf-btn ghost"
+                  style={{ marginLeft: 'auto', fontSize: '0.8em' }}
+                  onClick={async () => {
+                    if (!confirm('Accept all sections in all three tiers as-is? This logs them to the feedback loop.')) return
+                    const allSections = ['OVERVIEW', 'KEY_VOCABULARY', 'MAIN_CONTENT', 'ACTIVITIES', 'QUIZ']
+                    const allTiers = ['foundational', 'gradeLevel', 'advanced']
+                    const newAccepted = { ...accepted }
+                    await Promise.all(
+                      allTiers.flatMap(tier =>
+                        allSections.map(async section => {
+                          const key = SECTION_LEVEL_KEY(tier, section)
+                          if (newAccepted[key]) return
+                          const aiVersion = lesson?.[tier]?.[section.toLowerCase().replace(/_([a-z])/g, (_, c) => c.toUpperCase())]
+                          if (!aiVersion) return
+                          await logLessonEdit({ lessonId: savedLessonId, level: levelKeyToEnum(tier), section, editType: 'ACCEPTED_AS_IS', aiVersion, humanVersion: aiVersion }).catch(() => null)
+                          newAccepted[key] = true
+                        })
+                      )
+                    )
+                    setAccepted(newAccepted)
+                    setSaveNotice({ kind: 'success', message: 'All sections accepted and logged to the feedback loop.' })
+                  }}
+                >
+                  Accept All
+                </button>
+              )}
             </div>
           </section>
 
@@ -1131,6 +1176,263 @@ function AdaptTab() {
   )
 }
 
+// ─── Classes Tab ─────────────────────────────────────────────────────────────
+function ClassesTab() {
+  const [classes, setClasses] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [newClassName, setNewClassName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState(null)
+  const [expandedClassId, setExpandedClassId] = useState(null)
+  const [classData, setClassData] = useState({}) // classId → { students, loading, error, overriding }
+  const [copyState, setCopyState] = useState(null)
+
+  async function loadClasses() {
+    try {
+      const r = await getClasses()
+      setClasses(r.classes || [])
+    } catch { setClasses([]) }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { loadClasses() }, [])
+
+  async function handleCreate(e) {
+    e.preventDefault()
+    if (!newClassName.trim()) return
+    setCreating(true); setCreateError(null)
+    try {
+      await createClass(newClassName.trim())
+      setNewClassName('')
+      loadClasses()
+    } catch (err) {
+      setCreateError(err.message || 'Could not create class.')
+    } finally { setCreating(false) }
+  }
+
+  async function handleDelete(cls) {
+    const note = cls.lessonCount > 0 ? ` This will also remove ${cls.lessonCount} lesson(s).` : ''
+    if (!confirm(`Delete "${cls.name}"?${note} This cannot be undone.`)) return
+    try {
+      await deleteClass(cls.id, { force: cls.lessonCount > 0 })
+      setClasses(prev => prev.filter(c => c.id !== cls.id))
+      if (expandedClassId === cls.id) setExpandedClassId(null)
+    } catch (err) { alert(`Could not delete: ${err.message}`) }
+  }
+
+  async function toggleExpand(cls) {
+    if (expandedClassId === cls.id) { setExpandedClassId(null); return }
+    setExpandedClassId(cls.id)
+    if (classData[cls.id]) return
+    setClassData(prev => ({ ...prev, [cls.id]: { loading: true, students: null, error: null } }))
+    try {
+      const summary = await getClassDiagnosticSummary(cls.id)
+      setClassData(prev => ({ ...prev, [cls.id]: { loading: false, students: summary.students || [], error: null } }))
+    } catch (err) {
+      setClassData(prev => ({ ...prev, [cls.id]: { loading: false, students: [], error: err.message } }))
+    }
+  }
+
+  async function handleOverride(classId, studentId, field, value) {
+    const key = `${classId}:${studentId}:${field}`
+    setClassData(prev => ({ ...prev, [classId]: { ...prev[classId], overriding: key } }))
+    try {
+      await overrideStudentLevel(classId, studentId, { [field]: value })
+      setClassData(prev => ({
+        ...prev,
+        [classId]: {
+          ...prev[classId],
+          overriding: null,
+          students: (prev[classId].students || []).map(s =>
+            s.userId === studentId
+              ? { ...s, currentProfile: { ...s.currentProfile, [field]: value } }
+              : s
+          ),
+        },
+      }))
+    } catch (err) {
+      alert(`Could not update: ${err.message}`)
+      setClassData(prev => ({ ...prev, [classId]: { ...prev[classId], overriding: null } }))
+    }
+  }
+
+  function buildInviteLink(joinCode) {
+    return `${window.location.origin}/join?code=${encodeURIComponent(joinCode)}`
+  }
+
+  async function copyText(text, label) {
+    try { await navigator.clipboard.writeText(text); setCopyState({ label, ok: true }) }
+    catch { setCopyState({ label, ok: false }) }
+    setTimeout(() => setCopyState(null), 2000)
+  }
+
+  if (loading) return <p className="sv-muted">Loading classes…</p>
+
+  return (
+    <div>
+      <section className="bf-card" style={{ marginBottom: '12px' }}>
+        <h2 style={{ marginTop: 0 }}>Create a class</h2>
+        <form onSubmit={handleCreate} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <input
+            value={newClassName}
+            onChange={e => setNewClassName(e.target.value)}
+            placeholder="e.g. 6th Grade Science — Period 2"
+            style={{ flex: 1, minWidth: '200px' }}
+            maxLength={100}
+          />
+          <button className="bf-btn" type="submit" disabled={creating || !newClassName.trim()}>
+            {creating ? 'Creating…' : 'Create class'}
+          </button>
+        </form>
+        {createError && <p style={{ color: '#f87171', marginTop: '6px' }}>{createError}</p>}
+      </section>
+
+      {classes.length === 0 ? (
+        <section className="bf-card">
+          <p className="sv-muted">No classes yet. Create one above to get a student join code.</p>
+        </section>
+      ) : (
+        classes.map(cls => {
+          const isOpen = expandedClassId === cls.id
+          const data = classData[cls.id] || {}
+          return (
+            <section key={cls.id} className="bf-card" style={{ marginBottom: '12px' }}>
+              {/* ── Class header row ── */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => toggleExpand(cls)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0, color: 'inherit', textAlign: 'left', flex: 1 }}
+                >
+                  <span style={{ marginRight: '8px' }}>{isOpen ? '▾' : '▸'}</span>
+                  <strong>{cls.name}</strong>
+                  <span className="sv-muted" style={{ marginLeft: '10px', fontSize: '0.85em' }}>
+                    {cls.studentCount || 0} student{cls.studentCount !== 1 ? 's' : ''} · {cls.lessonCount || 0} lesson{cls.lessonCount !== 1 ? 's' : ''}
+                  </span>
+                </button>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <button type="button" className="bf-btn ghost"
+                    onClick={() => copyText(cls.joinCode, `code-${cls.id}`)}>
+                    {copyState?.label === `code-${cls.id}` ? (copyState.ok ? '✓ Copied' : 'Failed') : `Code: ${cls.joinCode}`}
+                  </button>
+                  <button type="button" className="bf-btn ghost"
+                    onClick={() => copyText(buildInviteLink(cls.joinCode), `link-${cls.id}`)}>
+                    {copyState?.label === `link-${cls.id}` ? (copyState.ok ? '✓ Copied' : 'Failed') : 'Invite link'}
+                  </button>
+                  <button type="button" className="bf-btn ghost" style={{ color: '#f87171' }}
+                    onClick={() => handleDelete(cls)}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Expanded student list ── */}
+              {isOpen && (
+                <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-subtle, #2a2a2a)', paddingTop: '1rem' }}>
+                  {data.loading && <p className="sv-muted">Loading students…</p>}
+                  {data.error && <p style={{ color: '#fca5a5' }}>{data.error}</p>}
+                  {!data.loading && data.students?.length === 0 && (
+                    <p className="sv-muted">No students enrolled yet. Share the join code or invite link.</p>
+                  )}
+                  {!data.loading && data.students?.length > 0 && (
+                    <>
+                      <p className="sv-muted" style={{ marginBottom: '0.75rem', fontSize: '0.85em' }}>
+                        Red = needs support · Blue = grade level · Green = advanced. Use the dropdowns to override a student's lesson level.
+                      </p>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--border-subtle, #2a2a2a)', textAlign: 'left' }}>
+                              <th style={{ padding: '6px 8px', fontWeight: 600 }}>Student</th>
+                              <th style={{ padding: '6px 8px', fontWeight: 600 }}>Reading</th>
+                              <th style={{ padding: '6px 8px', fontWeight: 600 }}>Math</th>
+                              <th style={{ padding: '6px 8px', fontWeight: 600 }}>Science</th>
+                              <th style={{ padding: '6px 8px', fontWeight: 600 }}>Override level</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {data.students.map(s => {
+                              const rLevel = s.currentProfile?.readingLevel || null
+                              const mLevel = s.currentProfile?.mathLevel || null
+                              const overrideKey = `${cls.id}:${s.userId}`
+                              return (
+                                <tr key={s.userId} style={{ borderBottom: '1px solid var(--border-subtle, #1a1a1a)' }}>
+                                  <td style={{ padding: '8px 8px' }}>
+                                    <span>{s.email}</span>
+                                    {(s.reading?.inferredLevel === 'FOUNDATIONAL' || s.math?.inferredLevel === 'BELOW_GRADE') && (
+                                      <span style={{ marginLeft: '6px', fontSize: '0.75em', color: '#f87171' }}>⚠ needs support</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '8px 8px' }}>
+                                    {s.reading ? (
+                                      <span style={{ color: levelColor(s.reading.inferredLevel) }}>
+                                        {fmtLevel(s.reading.inferredLevel)}
+                                        <small style={{ display: 'block', color: '#6b7280' }}>{s.reading.score}/{s.reading.totalQuestions}</small>
+                                      </span>
+                                    ) : <span className="sv-muted">No diagnostic</span>}
+                                  </td>
+                                  <td style={{ padding: '8px 8px' }}>
+                                    {s.math ? (
+                                      <span style={{ color: levelColor(s.math.inferredLevel) }}>
+                                        {fmtLevel(s.math.inferredLevel)}
+                                        <small style={{ display: 'block', color: '#6b7280' }}>{s.math.score}/{s.math.totalQuestions}</small>
+                                      </span>
+                                    ) : <span className="sv-muted">No diagnostic</span>}
+                                  </td>
+                                  <td style={{ padding: '8px 8px' }}>
+                                    {s.science ? (
+                                      <span style={{ color: levelColor(s.science.inferredLevel) }}>
+                                        {fmtLevel(s.science.inferredLevel)}
+                                        <small style={{ display: 'block', color: '#6b7280' }}>{s.science.score}/{s.science.totalQuestions}</small>
+                                      </span>
+                                    ) : <span className="sv-muted">No diagnostic</span>}
+                                  </td>
+                                  <td style={{ padding: '8px 8px' }}>
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                      <label style={{ fontSize: '0.8em', color: '#9ca3af' }}>
+                                        Reading
+                                        <select
+                                          value={rLevel || ''}
+                                          disabled={data.overriding === `${overrideKey}:readingLevel`}
+                                          onChange={e => handleOverride(cls.id, s.userId, 'readingLevel', e.target.value)}
+                                          style={{ display: 'block', marginTop: '2px', fontSize: '0.85em' }}
+                                        >
+                                          <option value="">— keep —</option>
+                                          {READING_LEVELS.map(l => <option key={l} value={l}>{fmtLevel(l)}</option>)}
+                                        </select>
+                                      </label>
+                                      <label style={{ fontSize: '0.8em', color: '#9ca3af' }}>
+                                        Math
+                                        <select
+                                          value={mLevel || ''}
+                                          disabled={data.overriding === `${overrideKey}:mathLevel`}
+                                          onChange={e => handleOverride(cls.id, s.userId, 'mathLevel', e.target.value)}
+                                          style={{ display: 'block', marginTop: '2px', fontSize: '0.85em' }}
+                                        >
+                                          <option value="">— keep —</option>
+                                          {MATH_LEVELS.map(l => <option key={l} value={l}>{fmtLevel(l)}</option>)}
+                                        </select>
+                                      </label>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </section>
+          )
+        })
+      )}
+    </div>
+  )
+}
+
 // ─── Main TeacherView shell ───────────────────────────────────────────────────
 export default function TeacherView() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -1140,6 +1442,7 @@ export default function TeacherView() {
     switch (activeTab) {
       case 'dashboard':   return <DashboardTab onNavigate={setActiveTab} />
       case 'lessonforge': return <LessonForgeTab />
+      case 'classes':     return <ClassesTab />
       case 'adapt':       return <AdaptTab />
       default:            return null
     }

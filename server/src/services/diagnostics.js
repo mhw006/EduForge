@@ -1,4 +1,4 @@
-const DIAGNOSTIC_DOMAINS = ['READING', 'MATH'];
+const DIAGNOSTIC_DOMAINS = ['READING', 'MATH', 'SCIENCE'];
 
 const QUESTION_SETS = {
   READING: {
@@ -309,6 +309,160 @@ const QUESTION_SETS = {
       },
     ],
   },
+  SCIENCE: {
+    key: 'science-v1',
+    domain: 'SCIENCE',
+    title: 'Science Diagnostic',
+    description: 'A 13-question check across life science, physical science, earth science, and scientific reasoning. Takes about 8–10 minutes.',
+    questions: [
+      // ── Easy: basic science facts ──────────────────────────────────────────
+      {
+        id: 'sci-1',
+        prompt: 'Which organelle is known as the "powerhouse" of the cell?',
+        options: [
+          { id: 'A', text: 'Nucleus' },
+          { id: 'B', text: 'Ribosome' },
+          { id: 'C', text: 'Mitochondria' },
+          { id: 'D', text: 'Vacuole' },
+        ],
+        correctOptionId: 'C',
+      },
+      {
+        id: 'sci-2',
+        prompt: 'What is the process by which plants make their own food using sunlight?',
+        options: [
+          { id: 'A', text: 'Respiration' },
+          { id: 'B', text: 'Photosynthesis' },
+          { id: 'C', text: 'Fermentation' },
+          { id: 'D', text: 'Digestion' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'sci-3',
+        prompt: 'What are the three states of matter?',
+        options: [
+          { id: 'A', text: 'Hot, warm, cold' },
+          { id: 'B', text: 'Solid, liquid, gas' },
+          { id: 'C', text: 'Atom, molecule, compound' },
+          { id: 'D', text: 'Metal, nonmetal, alloy' },
+        ],
+        correctOptionId: 'B',
+      },
+      // ── Medium: applying concepts ──────────────────────────────────────────
+      {
+        id: 'sci-4',
+        prompt: 'A rock layer is found below another rock layer. Which layer formed first?',
+        options: [
+          { id: 'A', text: 'The top layer' },
+          { id: 'B', text: 'The bottom layer' },
+          { id: 'C', text: 'Both at the same time' },
+          { id: 'D', text: 'It is impossible to tell' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'sci-5',
+        prompt: 'An object accelerates when an unbalanced force acts on it. This is an example of:',
+        options: [
+          { id: 'A', text: "Newton's First Law" },
+          { id: 'B', text: "Newton's Second Law" },
+          { id: 'C', text: "Newton's Third Law" },
+          { id: 'D', text: 'The Law of Conservation of Mass' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'sci-6',
+        prompt: 'Which of the following is a chemical change?',
+        options: [
+          { id: 'A', text: 'Ice melting into water' },
+          { id: 'B', text: 'Sugar dissolving in tea' },
+          { id: 'C', text: 'Iron rusting' },
+          { id: 'D', text: 'Glass breaking' },
+        ],
+        correctOptionId: 'C',
+      },
+      {
+        id: 'sci-7',
+        prompt: 'What does DNA primarily do in a cell?',
+        options: [
+          { id: 'A', text: 'Produces energy for the cell' },
+          { id: 'B', text: 'Carries genetic instructions' },
+          { id: 'C', text: 'Breaks down food molecules' },
+          { id: 'D', text: 'Allows water to enter the cell' },
+        ],
+        correctOptionId: 'B',
+      },
+      // ── Harder: reasoning and analysis ────────────────────────────────────
+      {
+        id: 'sci-8',
+        prompt: 'A student places a plant in a dark room for a week. The plant likely turns yellow because:',
+        options: [
+          { id: 'A', text: 'It absorbed too much water' },
+          { id: 'B', text: 'It cannot perform photosynthesis without light' },
+          { id: 'C', text: 'The temperature dropped too low' },
+          { id: 'D', text: 'The soil has too many nutrients' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'sci-9',
+        prompt: 'Which best explains why the Earth has seasons?',
+        options: [
+          { id: 'A', text: 'Earth moves closer to the Sun in summer' },
+          { id: 'B', text: 'The Sun changes its energy output each month' },
+          { id: 'C', text: "Earth's axial tilt causes different hemispheres to receive more direct sunlight" },
+          { id: 'D', text: 'The Moon blocks sunlight during winter' },
+        ],
+        correctOptionId: 'C',
+      },
+      {
+        id: 'sci-10',
+        prompt: 'A student tests whether caffeine affects plant growth. The control group is:',
+        options: [
+          { id: 'A', text: 'Plants given the highest dose of caffeine' },
+          { id: 'B', text: 'Plants given no caffeine' },
+          { id: 'C', text: 'The tallest plant in the experiment' },
+          { id: 'D', text: 'The plant kept in the dark' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'sci-11',
+        prompt: 'Energy is transferred through a food chain. Which organism is always at the base?',
+        options: [
+          { id: 'A', text: 'Predator' },
+          { id: 'B', text: 'Decomposer' },
+          { id: 'C', text: 'Producer (plant)' },
+          { id: 'D', text: 'Herbivore' },
+        ],
+        correctOptionId: 'C',
+      },
+      {
+        id: 'sci-12',
+        prompt: 'Which describes a hypothesis?',
+        options: [
+          { id: 'A', text: 'A final conclusion based on all evidence' },
+          { id: 'B', text: 'A testable prediction about the outcome of an experiment' },
+          { id: 'C', text: 'A law that cannot be changed' },
+          { id: 'D', text: 'A summary of someone else\'s research' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'sci-13',
+        prompt: 'Why is peer review important in science?',
+        options: [
+          { id: 'A', text: 'It makes experiments faster to complete' },
+          { id: 'B', text: 'It ensures that other scientists can check the work for errors and bias' },
+          { id: 'C', text: 'It guarantees that all findings are correct' },
+          { id: 'D', text: 'It is only required for biology research' },
+        ],
+        correctOptionId: 'B',
+      },
+    ],
+  },
 };
 
 function getDiagnosticCatalog() {
@@ -346,6 +500,12 @@ function inferMathLevel(percent) {
   return 'ADVANCED';
 }
 
+function inferScienceLevel(percent) {
+  if (percent < 40) return 'FOUNDATIONAL';
+  if (percent < 80) return 'GRADE_LEVEL';
+  return 'ADVANCED';
+}
+
 function buildRecommendedProfilePatch(domain, inferredLevel) {
   if (domain === 'READING') {
     return {
@@ -354,7 +514,9 @@ function buildRecommendedProfilePatch(domain, inferredLevel) {
       preferredContentFormat: inferredLevel === 'FOUNDATIONAL' ? 'TEXT_FOCUSED' : 'MIXED_MEDIA',
     };
   }
-
+  if (domain === 'SCIENCE') {
+    return { diagnosticScienceLevel: inferredLevel };
+  }
   return {
     diagnosticMathLevel: inferredLevel,
     mathLevel: inferredLevel,
@@ -390,9 +552,9 @@ function scoreDiagnostic(domain, responses) {
   const percent = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
 
   const inferredLevel =
-    normalizedDomain === 'READING'
-      ? inferReadingLevel(percent)
-      : inferMathLevel(percent);
+    normalizedDomain === 'READING' ? inferReadingLevel(percent) :
+    normalizedDomain === 'SCIENCE' ? inferScienceLevel(percent) :
+    inferMathLevel(percent);
 
   const recommendedProfilePatch = buildRecommendedProfilePatch(normalizedDomain, inferredLevel);
 
@@ -403,8 +565,9 @@ function scoreDiagnostic(domain, responses) {
     totalQuestions,
     percent,
     responses: gradedResponses,
-    inferredReadingLevel: normalizedDomain === 'READING' ? inferredLevel : null,
+    inferredReadingLevel: (normalizedDomain === 'READING' || normalizedDomain === 'SCIENCE') ? inferredLevel : null,
     inferredMathLevel: normalizedDomain === 'MATH' ? inferredLevel : null,
+    inferredScienceLevel: normalizedDomain === 'SCIENCE' ? inferredLevel : null,
     recommendedProfilePatch,
   };
 }
