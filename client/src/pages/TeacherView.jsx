@@ -1463,6 +1463,120 @@ function ClassesTab() {
   )
 }
 
+// ─── Sidebar FAQ ─────────────────────────────────────────────────────────────
+const FAQ_ITEMS = [
+  {
+    q: 'What is a Diagnostic?',
+    a: 'A short 13-question placement quiz students take in Reading, Math, or Science. Results set the student\'s level (Foundational → Grade Level → Advanced) so EduForge knows which version of a lesson to show them.',
+  },
+  {
+    q: 'What does "Foundational" mean?',
+    a: 'A student scored below 40% on a diagnostic. Their lessons are simplified — shorter sentences, key vocabulary highlighted, more scaffolding. Think of it as the support tier.',
+  },
+  {
+    q: 'What is Grade Level?',
+    a: 'The middle tier. Students scored 40–79% and receive the standard lesson version. Most students start here.',
+  },
+  {
+    q: 'What is Advanced?',
+    a: 'Students scored 80%+ and receive enriched content — more depth, higher-order questions, and less scaffolding.',
+  },
+  {
+    q: 'What is the Teacher Rewrite Hotspot?',
+    a: 'Every time you edit a section of an AI-generated lesson instead of accepting it, EduForge logs the change. The hotspot is the section you\'ve changed most often — it shows where the AI drafts need the most human correction for your class.',
+  },
+  {
+    q: 'What is the Closed-Loop / Feedback Loop?',
+    a: 'The cycle where student diagnostic results adapt lessons → teachers edit AI drafts → those edits improve future generation → students retake diagnostics. Every action feeds data back into the system.',
+  },
+  {
+    q: 'What is LessonForge?',
+    a: 'The AI lesson generator. You enter a topic or learning standard and EduForge generates three reading-level versions of the lesson (Foundational, Grade Level, Advanced) with vocabulary, activities, and a quiz — all in one go.',
+  },
+  {
+    q: 'What does "Accept" / "Accept All" do?',
+    a: 'Marks an AI-generated section as correct as-is without editing it. This logs a positive signal to the feedback loop — the system learns what it got right. Accept All logs every section across all three levels at once.',
+  },
+  {
+    q: 'What is a Reading-Level Mix?',
+    a: 'A count of how many students are in each reading tier based on their latest diagnostic. E.g. "Foundational (3) · Grade Level (12) · Advanced (5)" tells you 3 students need extra support in your next lesson.',
+  },
+  {
+    q: 'What is a Math-Level Mix?',
+    a: 'Same idea as reading-level mix but for math. Math uses Below Grade / Grade Level / Advanced. Use this to decide how much scaffolding to add when forging a math lesson.',
+  },
+  {
+    q: 'What is the Support Watchlist count?',
+    a: 'The number of students who scored Foundational (reading) or Below Grade (math) on their latest diagnostic. Open the Classes tab to see their names and override their lesson level manually.',
+  },
+  {
+    q: 'What are Recommended Actions / Next Moves?',
+    a: 'Actions ranked by Claude based on your class\'s live data — diagnostic scores, quiz results, which lesson sections you rewrote, and how students use lessons. They update each time you load the dashboard.',
+  },
+  {
+    q: 'What is Top Student Behavior?',
+    a: 'The most common action students perform inside lessons — switching language, turning on audio, changing bandwidth, or starting a quiz. It tells you which accessibility features your class actually relies on.',
+  },
+  {
+    q: 'What is the Join Code?',
+    a: 'A short code students enter in the Student View → My Classes tab to enroll in your class. You can also share the invite link which auto-fills the code.',
+  },
+  {
+    q: 'What is Bandwidth Mode?',
+    a: 'A student setting that controls how media-rich their lesson is. Full = images and audio. Reduced = fewer images. Text Only = plain text only, for low-connectivity situations.',
+  },
+  {
+    q: 'What is The Anvil?',
+    a: 'The adapt studio. Paste any topic and set a learner profile — language, reading level, accessibility needs — and EduForge tempers the content live without saving a permanent lesson.',
+  },
+]
+
+function SidebarFAQ() {
+  const [open, setOpen] = useState(false)
+  const [expandedIndex, setExpandedIndex] = useState(null)
+
+  function toggle(i) {
+    setExpandedIndex(prev => prev === i ? null : i)
+  }
+
+  return (
+    <div className="sidebar-faq">
+      <button
+        type="button"
+        className="sidebar-faq-toggle"
+        onClick={() => { setOpen(o => !o); setExpandedIndex(null) }}
+        aria-expanded={open}
+      >
+        <span>❓</span>
+        <span>Help & Glossary</span>
+        <span style={{ marginLeft: 'auto', fontSize: '0.8em', opacity: 0.7 }}>{open ? '▴' : '▾'}</span>
+      </button>
+
+      {open && (
+        <div className="sidebar-faq-panel">
+          <p className="sidebar-faq-intro">Tap any term to expand it.</p>
+          {FAQ_ITEMS.map((item, i) => (
+            <div key={i} className="sidebar-faq-item">
+              <button
+                type="button"
+                className="sidebar-faq-question"
+                onClick={() => toggle(i)}
+                aria-expanded={expandedIndex === i}
+              >
+                <span>{item.q}</span>
+                <span style={{ fontSize: '0.75em', opacity: 0.6, flexShrink: 0 }}>{expandedIndex === i ? '▴' : '▾'}</span>
+              </button>
+              {expandedIndex === i && (
+                <p className="sidebar-faq-answer">{item.a}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main TeacherView shell ───────────────────────────────────────────────────
 export default function TeacherView() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -1493,6 +1607,9 @@ export default function TeacherView() {
             <span className="sv-tab-label">{tab.label}</span>
           </button>
         ))}
+        <div style={{ marginTop: 'auto', paddingTop: '16px' }}>
+          <SidebarFAQ />
+        </div>
       </nav>
 
       <main className="sv-content">
