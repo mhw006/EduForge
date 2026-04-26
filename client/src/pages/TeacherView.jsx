@@ -225,7 +225,7 @@ function LessonForgeTab() {
   return (
     <div>
       <p className="sv-muted" style={{ marginBottom: '1.25rem' }}>
-        Paste a standard and Claude generates a fully differentiated 3-tier lesson with activities, quiz, and vocabulary.
+        Paste a standard to create a differentiated 3-tier lesson with activities, quiz checks, and vocabulary supports.
       </p>
 
       <section className="bf-card">
@@ -265,7 +265,7 @@ function LessonForgeTab() {
           </label>
 
           <button className="bf-btn" type="submit" disabled={loading}>
-            {loading ? 'Claude is generating…' : 'Generate Differentiated Lesson'}
+            {loading ? 'Generating lesson…' : 'Generate Differentiated Lesson'}
           </button>
         </form>
 
@@ -454,7 +454,7 @@ function AdaptTab() {
             required
           />
           <button className="bf-btn" type="submit" disabled={loading}>
-            {loading ? 'Claude is adapting…' : 'Adapt Content'}
+            {loading ? 'Adapting content…' : 'Adapt Content'}
           </button>
         </form>
         {error && <p style={{ color: '#f87171', marginTop: '0.75rem' }}>{error}</p>}

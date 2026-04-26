@@ -81,7 +81,7 @@ export default function AssignmentBreakdown() {
     <main className="page-wrap narrow">
       <header className="page-header single">
         <h1>LessonForge Engine</h1>
-        <p>Paste a standard and transform one lesson into differentiated plans, quiz assets, and extension activities — powered by Claude AI.</p>
+        <p>Paste a standard and transform one lesson into differentiated plans, quiz assets, and extension activities.</p>
       </header>
 
       <section className="bf-card">
@@ -126,7 +126,7 @@ export default function AssignmentBreakdown() {
           </label>
 
           <button className="bf-btn" type="submit" disabled={loading}>
-            {loading ? 'Claude is generating…' : 'Generate Differentiated Lesson'}
+            {loading ? 'Generating lesson…' : 'Generate Differentiated Lesson'}
           </button>
         </form>
         {error && <p style={{ color: '#f87171', marginTop: '1rem' }}>{error}</p>}
