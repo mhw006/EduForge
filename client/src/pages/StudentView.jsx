@@ -199,18 +199,40 @@ function LessonRenderer({ lesson, profile }) {
   function speak() {
     if (!content.mainContent) return
     window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(`${content.overview || ''}\n\n${content.mainContent}`)
+
     const TTS_LANG_MAP = {
       es: 'es-ES', fr: 'fr-FR', zh: 'zh-CN', pt: 'pt-BR',
       ar: 'ar-SA', ko: 'ko-KR', vi: 'vi-VN', hi: 'hi-IN',
       ru: 'ru-RU', de: 'de-DE', ja: 'ja-JP', it: 'it-IT',
     }
-    utterance.lang = TTS_LANG_MAP[profile.language] || 'en-US'
-    utterance.onend = () => setSpeaking(false)
-    utterance.onerror = () => setSpeaking(false)
-    utteranceRef.current = utterance
-    setSpeaking(true)
-    window.speechSynthesis.speak(utterance)
+    const targetLang = TTS_LANG_MAP[profile.language] || 'en-US'
+    const text = `${content.overview || ''}\n\n${content.mainContent}`
+
+    function doSpeak(voices) {
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = targetLang
+      // Explicitly pick a voice matching the language prefix so browser
+      // doesn't silently fall back to the default English voice.
+      const langPrefix = targetLang.split('-')[0].toLowerCase()
+      const match = voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix))
+      if (match) utterance.voice = match
+      utterance.onend = () => setSpeaking(false)
+      utterance.onerror = () => setSpeaking(false)
+      utteranceRef.current = utterance
+      setSpeaking(true)
+      window.speechSynthesis.speak(utterance)
+    }
+
+    const voices = window.speechSynthesis.getVoices()
+    if (voices.length > 0) {
+      doSpeak(voices)
+    } else {
+      // Chrome loads voices async; wait for the event then speak.
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.onvoiceschanged = null
+        doSpeak(window.speechSynthesis.getVoices())
+      }
+    }
   }
 
   function stopSpeaking() {
