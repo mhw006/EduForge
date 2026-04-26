@@ -64,7 +64,12 @@ router.post('/join', protect, requireStudent, async (req, res) => {
     });
 
     if (existing) {
-      return res.status(409).json({ error: 'Already enrolled in this class' });
+      return res.json({
+        classId: classRecord.id,
+        className: classRecord.name,
+        joinedAt: existing.joinedAt,
+        alreadyEnrolled: true,
+      });
     }
 
     const enrollment = await prisma.enrollment.create({

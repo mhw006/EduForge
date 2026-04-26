@@ -57,12 +57,6 @@ const DEFAULT_LANGUAGES = [
   { code: 'tl', label: 'Tagalog' },
 ]
 
-const SAMPLE_ASSIGNMENTS = [
-  { id: 'a1', title: 'Textual Evidence Quiz', due: '2026-04-28', status: 'Due soon', course: 'ELA' },
-  { id: 'a2', title: 'Evidence Paragraph Draft', due: '2026-04-30', status: 'Not started', course: 'ELA' },
-  { id: 'a3', title: 'Vocabulary Review', due: '2026-05-02', status: 'In progress', course: 'ELA' },
-]
-
 const TODAY = new Date()
 
 function getFontClass(fontSize) {
@@ -580,19 +574,77 @@ function getOptionLetter(option, fallbackIndex) {
   return match ? match[1].toUpperCase() : String.fromCharCode(65 + fallbackIndex)
 }
 
+function splitSentences(text) {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .match(/[^.!?]+[.!?]+|[^.!?]+$/g)
+    ?.map((sentence) => sentence.trim())
+    .filter(Boolean) || []
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function getTermPattern(term) {
+  const words = String(term || '').trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return null
+  const pattern = words
+    .map((word) => {
+      const suffix = word.length > 3 && !/[ses]$/i.test(word) ? '(?:s|es)?' : ''
+      return `${escapeRegExp(word)}${suffix}`
+    })
+    .join('\\s+')
+  return new RegExp(`\\b${pattern}\\b`, 'i')
+}
+
+function findClozeSentence(sentences, term, usedSentences) {
+  const termPattern = getTermPattern(term)
+  const exact = sentences.find((sentence) => termPattern?.test(sentence) && !usedSentences.has(sentence))
+    || sentences.find((sentence) => termPattern?.test(sentence))
+  if (exact) {
+    const match = exact.match(termPattern)?.[0] || term
+    return { sentence: exact, match, answer: match }
+  }
+
+  const termWords = String(term || '').toLowerCase().split(/\W+/).filter((word) => word.length > 3)
+  const partial = sentences.find((sentence) => {
+    if (usedSentences.has(sentence)) return false
+    const lower = sentence.toLowerCase()
+    return termWords.some((word) => lower.includes(word) || lower.includes(`${word}s`))
+  }) || sentences.find((sentence) => {
+    const lower = sentence.toLowerCase()
+    return termWords.some((word) => lower.includes(word) || lower.includes(`${word}s`))
+  })
+
+  if (partial) {
+    const matchedWord = termWords.find((word) => partial.toLowerCase().includes(word))
+    const match = partial.match(new RegExp(`\\b${escapeRegExp(matchedWord)}(?:s|es)?\\b`, 'i'))?.[0]
+    if (match) return { sentence: partial, match, answer: match }
+  }
+
+  return null
+}
+
 function makeClozeItems(content) {
   const text = stripHtml(content?.mainContent)
+  const sentences = splitSentences(text)
+  const usedSentences = new Set()
+
   return getVocabulary(content).slice(0, 6).map((item) => {
-    const escaped = item.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const sentence = (text.match(new RegExp(`[^.!?]*\\b${escaped}\\b[^.!?]*[.!?]`, 'i')) || [text])[0]?.trim()
+    const found = findClozeSentence(sentences, item.term, usedSentences)
+    const sentence = found?.sentence || `${item.term} means ${item.definition}`
+    const answer = found?.answer || item.term
+    const blankTarget = found?.match || item.term
+    usedSentences.add(sentence)
+
     return {
       term: item.term,
-      prompt: sentence
-        ? sentence.replace(new RegExp(`\\b${escaped}\\b`, 'i'), '__________')
-        : `__________ means ${item.definition}`,
+      answer,
+      prompt: sentence.replace(new RegExp(`\\b${escapeRegExp(blankTarget)}\\b`, 'i'), '__________'),
       hint: item.definition,
     }
-  })
+  }).filter((item) => item.prompt.includes('__________'))
 }
 
 function makePracticeItems(content) {
@@ -826,179 +878,6 @@ function AdaptationBanner({ profile }) {
   )
 }
 
-function LegacyLessonRenderer({ lesson, profile }) {
-  const content = lesson?.content
-  const [speaking, setSpeaking] = useState(false)
-  const utteranceRef = useRef(null)
-  const speechQueueRef = useRef([])
-  const speechCancelledRef = useRef(false)
-
-  useEffect(() => {
-    return () => {
-      speechCancelledRef.current = true
-      // Only cancel if actually speaking — calling cancel() on an idle
-      // synthesis leaves Chrome in a broken state that silently drops the
-      // next speak() call.
-      if (window.speechSynthesis?.speaking || window.speechSynthesis?.pending) {
-        window.speechSynthesis.cancel()
-      }
-    }
-  }, [])
-
-  if (!content) {
-    return <p className="sv-muted">Choose a lesson to see the adapted student version.</p>
-  }
-
-  const terms = (content.keyVocabulary || []).map((item) => item.term).filter(Boolean)
-  const requestedLanguage = getLanguageLabel(profile.language)
-  const translationStatusLabel = content._translationFailed
-    ? `Translation unavailable: ${requestedLanguage}`
-    : content._translated
-      ? `Translated: ${getLanguageLabel(content._targetLang)}`
-      : 'Original English'
-  const articleClass = [
-    'student-lesson-article',
-    getFontClass(profile.fontSize),
-    profile.highContrast ? 'student-high-contrast' : '',
-    profile.dyslexiaFont ? 'student-dyslexia' : '',
-  ].filter(Boolean).join(' ')
-
-  function speak() {
-    if (!content.mainContent || !window.speechSynthesis) return
-
-    // If translation failed the content is still English; use English voice.
-    const effectiveLang = content._translationFailed ? 'en' : profile.language
-    const raw = `${decodeHtml(content.overview)}\n\n${decodeHtml(content.mainContent)}`
-    const chunks = chunkTextForSpeech(raw)
-    if (chunks.length === 0) return
-
-    const voice = findVoiceForLanguage(effectiveLang)
-    const targetLang = getTtsLanguage(effectiveLang)
-
-    const speakNext = () => {
-      if (speechCancelledRef.current) return
-
-      const nextText = speechQueueRef.current.shift()
-      if (!nextText) {
-        setSpeaking(false)
-        utteranceRef.current = null
-        return
-      }
-
-      const utterance = new SpeechSynthesisUtterance(nextText)
-      if (voice) {
-        utterance.voice = voice
-        utterance.lang = voice.lang
-      } else {
-        utterance.lang = targetLang
-      }
-
-      utterance.onend = speakNext
-      utterance.onerror = () => {
-        setSpeaking(false)
-        utteranceRef.current = null
-      }
-      utteranceRef.current = utterance
-      window.speechSynthesis.speak(utterance)
-    }
-
-    speechCancelledRef.current = false
-    speechQueueRef.current = chunks
-    window.speechSynthesis.cancel()
-    setSpeaking(true)
-    setTimeout(speakNext, 50)
-  }
-
-  function stopSpeaking() {
-    speechCancelledRef.current = true
-    speechQueueRef.current = []
-    window.speechSynthesis.cancel()
-    utteranceRef.current = null
-    setSpeaking(false)
-  }
-
-  return (
-    <article className={articleClass}>
-      <div className="student-status-row">
-        <span>{lesson.title}</span>
-        {lesson.appliedProfile?.readingLevel && (
-          <span>Adapted · {formatReadingLevel(lesson.appliedProfile.readingLevel)}</span>
-        )}
-        {lesson.appliedProfile?.diagnosticReadingLevel && lesson.appliedProfile.readingLevel === lesson.appliedProfile.diagnosticReadingLevel && (
-          <span>Diagnostic-updated reading level</span>
-        )}
-        <span>{translationStatusLabel}</span>
-        {content._textOnly && <span>Text-only mode</span>}
-        {content._translationFailed && <span>Showing original (translation unavailable)</span>}
-      </div>
-
-      {profile.ttsEnabled && (
-        <button className="bf-btn" type="button" onClick={speaking ? stopSpeaking : speak}>
-          {speaking ? 'Stop reading' : 'Read aloud'}
-        </button>
-      )}
-
-      <h2>{content.levelLabel || lesson.title}</h2>
-      {content.lexileRange && <p className="sv-muted">{content.lexileRange}</p>}
-      {content.overview && <p className="student-overview">{decodeHtml(content.overview)}</p>}
-
-      {terms.length > 0 && (
-        <section>
-          <h3>Key Vocabulary</h3>
-          <ul className="item-list compact">
-            {content.keyVocabulary.map((item) => (
-              <li key={item.term}>
-                <strong>{item.term}</strong>
-                <small>{item.definition}</small>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {content.mainContent && (
-        <section>
-          <h3>Lesson Content</h3>
-          <div className="student-main-content" dangerouslySetInnerHTML={{ __html: content.mainContent }} />
-        </section>
-      )}
-
-      {content.activities?.length > 0 && (
-        <section>
-          <h3>Activities</h3>
-          <ul className="item-list compact">
-            {content.activities.map((activity) => (
-              <li key={activity.title}>
-                <strong>{activity.title}</strong>
-                <span>{activity.instructions}</span>
-                {activity.estimatedMinutes && <small>{activity.estimatedMinutes} minutes</small>}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {content.quiz?.length > 0 && (
-        <section>
-          <h3>Quick Check</h3>
-          <ol className="student-quiz">
-            {content.quiz.map((item, index) => (
-              <li key={`${item.question}-${index}`}>
-                <strong>{item.question}</strong>
-                <ul>
-                  {(item.options || []).map((option) => (
-                    <li key={option}>{option}</li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
-    </article>
-  )
-}
-
 function InteractiveLessonMode({ content }) {
   const sections = useMemo(() => getLessonSections(content), [content])
   const [activeSection, setActiveSection] = useState(0)
@@ -1075,7 +954,7 @@ function ClozeMode({ content }) {
       <ol className="cloze-list">
         {items.map((item, index) => {
           const response = answers[index] || ''
-          const correct = response.trim().toLowerCase() === item.term.toLowerCase()
+          const correct = response.trim().toLowerCase() === item.answer.toLowerCase()
           return (
             <li key={`${item.term}-${index}`}>
               <p>{item.prompt}</p>
@@ -1087,7 +966,7 @@ function ClozeMode({ content }) {
               />
               {checked && (
                 <small className={correct ? 'answer-correct' : 'answer-review'}>
-                  {correct ? 'Correct' : `Review: ${item.term} - ${item.hint}`}
+                  {correct ? 'Correct' : `Review: ${item.answer} - ${item.hint}`}
                 </small>
               )}
             </li>
@@ -1259,6 +1138,14 @@ function LessonRenderer({ lesson, profile }) {
     return <p className="sv-muted">Choose a lesson to see the adapted student version.</p>
   }
 
+  const contentKey = [
+    lesson.id,
+    lesson.title,
+    content.levelLabel,
+    content.lexileRange,
+    stripHtml(content.mainContent).slice(0, 120),
+  ].filter(Boolean).join('|')
+
   const requestedLanguage = getLanguageLabel(profile.language)
   const translationStatusLabel = content._translationFailed
     ? `Translation unavailable: ${requestedLanguage}`
@@ -1380,10 +1267,25 @@ function LessonRenderer({ lesson, profile }) {
       </div>
 
       <div className="lesson-mode-content">
-        {renderMode()}
+        <div key={`${contentKey}:${activeMode}`}>
+          {renderMode()}
+        </div>
       </div>
     </article>
   )
+}
+
+async function loadPublishedStudentLessons() {
+  const classResult = await getClasses('student')
+  const classes = classResult.classes || []
+  const lessons = (
+    await Promise.all(classes.map(async (item) => {
+      const result = await getLessonsByClass(item.id, 'student')
+      return (result.lessons || []).map((lesson) => ({ ...lesson, className: item.name }))
+    }))
+  ).flat().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+  return { classes, lessons }
 }
 
 function LessonsTab() {
@@ -1605,6 +1507,25 @@ function LessonsTab() {
 
 function AssignmentsTab() {
   const [done, setDone] = useState(new Set())
+  const [lessons, setLessons] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadAssignments() {
+      try {
+        const result = await loadPublishedStudentLessons()
+        if (!cancelled) setLessons(result.lessons)
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Could not load assignments.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    loadAssignments()
+    return () => { cancelled = true }
+  }, [])
 
   function toggle(id) {
     setDone((prev) => {
@@ -1614,22 +1535,33 @@ function AssignmentsTab() {
     })
   }
 
+  if (loading) return <p className="sv-muted">Loading assignments...</p>
+  if (error) return <p style={{ color: '#fca5a5' }}>{error}</p>
+
   return (
     <div>
-      <p className="sv-muted" style={{ marginBottom: '1rem' }}>Your upcoming assignments from all classes.</p>
+      <p className="sv-muted" style={{ marginBottom: '1rem' }}>Your published lesson tasks from all classes.</p>
       <ul className="sv-assignment-list">
-        {SAMPLE_ASSIGNMENTS.map((assignment) => (
-          <li key={assignment.id} className={`sv-assignment-item ${done.has(assignment.id) ? 'done' : ''}`}>
+        {lessons.map((lesson) => (
+          <li key={lesson.id} className={`sv-assignment-item ${done.has(lesson.id) ? 'done' : ''}`}>
             <label className="sv-check-row">
-              <input type="checkbox" checked={done.has(assignment.id)} onChange={() => toggle(assignment.id)} />
+              <input type="checkbox" checked={done.has(lesson.id)} onChange={() => toggle(lesson.id)} />
               <div>
-                <strong>{assignment.title}</strong>
-                <span>{assignment.course} - Due {assignment.due}</span>
-                <small className={`sv-badge ${assignment.status === 'Due soon' ? 'warn' : ''}`}>{assignment.status}</small>
+                <strong>{lesson.title}</strong>
+                <span>{lesson.className} - Published {new Date(lesson.publishedAt || lesson.createdAt).toLocaleDateString()}</span>
+                <small className={`sv-badge ${done.has(lesson.id) ? '' : 'warn'}`}>
+                  {done.has(lesson.id) ? 'Done' : 'Ready to review'}
+                </small>
               </div>
             </label>
           </li>
         ))}
+        {lessons.length === 0 && (
+          <li className="sv-assignment-item">
+            <strong>No published lesson tasks yet</strong>
+            <span className="sv-muted">When your teacher publishes a lesson, it will appear here.</span>
+          </li>
+        )}
       </ul>
     </div>
   )
@@ -1637,19 +1569,34 @@ function AssignmentsTab() {
 
 function PlannerTab() {
   const [done, setDone] = useState(new Set())
+  const [lessons, setLessons] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    loadPublishedStudentLessons()
+      .then((result) => { if (!cancelled) setLessons(result.lessons) })
+      .catch(() => { if (!cancelled) setLessons([]) })
+    return () => { cancelled = true }
+  }, [])
+
   const days = useMemo(() => {
-    return Array.from({ length: 14 }, (_, index) => {
+    const tasks = lessons.length > 0 ? lessons : [{ id: 'review', title: 'Review adapted lesson', className: 'Study plan' }]
+    return Array.from({ length: Math.min(14, Math.max(7, tasks.length * 2)) }, (_, index) => {
       const day = new Date(TODAY)
       day.setDate(TODAY.getDate() + index)
-      return day
+      return {
+        date: day,
+        task: tasks[index % tasks.length],
+        action: index % 2 === 0 ? 'Read' : 'Practice',
+      }
     })
-  }, [])
+  }, [lessons])
 
   return (
     <div>
-      <p className="sv-muted" style={{ marginBottom: '1rem' }}>A simple two-week plan keeps the next step clear.</p>
+      <p className="sv-muted" style={{ marginBottom: '1rem' }}>A lesson-based plan keeps the next step clear.</p>
       <div className="sv-calendar">
-        {days.map((day, index) => {
+        {days.map((item, index) => {
           const isDone = done.has(index)
           return (
             <div
@@ -1662,12 +1609,12 @@ function PlannerTab() {
               })}
             >
               <div className="sv-cal-date">
-                <strong>{day.toLocaleDateString('en-US', { weekday: 'short' })}</strong>
-                <span>{day.getMonth() + 1}/{day.getDate()}</span>
+                <strong>{item.date.toLocaleDateString('en-US', { weekday: 'short' })}</strong>
+                <span>{item.date.getMonth() + 1}/{item.date.getDate()}</span>
               </div>
               <div className="sv-cal-task">
                 <span className="sv-type-dot" style={{ background: index % 2 ? '#60a5fa' : '#4ade80' }} />
-                <span>{isDone ? <s>Review adapted lesson</s> : 'Review adapted lesson'}</span>
+                <span>{isDone ? <s>{item.action}: {item.task.title}</s> : `${item.action}: ${item.task.title}`}</span>
               </div>
               {index === 0 && <span className="sv-today-badge">Today</span>}
               {isDone && <span className="sv-done-badge">Done</span>}
@@ -1680,7 +1627,22 @@ function PlannerTab() {
 }
 
 function BonfireTab() {
-  const [progress, setProgress] = useState({ fuelPoints: 160, studySessions: 5, missedDays: 0 })
+  const [progress, setProgress] = useState({ fuelPoints: 0, studySessions: 0, missedDays: 0 })
+
+  useEffect(() => {
+    let cancelled = false
+    loadPublishedStudentLessons()
+      .then((result) => {
+        if (cancelled) return
+        setProgress((prev) => ({
+          ...prev,
+          fuelPoints: result.lessons.length * 20,
+          studySessions: result.lessons.length,
+        }))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const focusLevel = useMemo(() => {
     if (progress.fuelPoints > 300) return 'High Growth Momentum'
