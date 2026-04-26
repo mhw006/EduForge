@@ -294,6 +294,26 @@ button {
   gap: 12px;
 }
 
+.teacher-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.teacher-metric-tile {
+  border: 1px solid rgba(146, 166, 223, 0.17);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+  background: rgba(12, 21, 43, 0.72);
+}
+
+.teacher-metric-tile strong {
+  font-size: 1.35rem;
+  color: #ffe0bd;
+}
+
 .item-list {
   list-style: none;
   margin: 0;

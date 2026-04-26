@@ -69,6 +69,11 @@ export async function getLessonsByClass(classId, demoUser = 'teacher') {
   return handleResponse(response)
 }
 
+export async function getClassAnalytics(classId, demoUser = 'teacher') {
+  const response = await apiFetch(`/analytics/${classId}`, { demoUser })
+  return handleResponse(response)
+}
+
 export async function getLesson(lessonId, demoUser = 'student') {
   const response = await apiFetch(`/lessons/${lessonId}`, { demoUser })
   return handleResponse(response)
