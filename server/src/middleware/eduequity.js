@@ -9,6 +9,7 @@ async function adaptLesson(req, res, next) {
       allowTeacherOwner: true,
       allowEnrolledStudent: true,
       logViewEvent: true,
+      requirePublishedForStudents: true,
     });
 
     next();

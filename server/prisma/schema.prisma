@@ -15,10 +15,12 @@ model User {
   createdAt DateTime @default(now())
 
   taughtClasses    Class[]            @relation("TeacherClasses")
+  publishedLessons Lesson[]           @relation("PublishedLessons")
   enrollments      Enrollment[]
   profile          LearnerProfile?
   audioCache       AudioCache[]
   quizAttempts     QuizAttempt[]
+  diagnosticAttempts DiagnosticAttempt[]
   engagementEvents EngagementEvent[]
 }
 
@@ -37,8 +39,9 @@ model Class {
   teacher   User     @relation("TeacherClasses", fields: [teacherId], references: [id])
   createdAt DateTime @default(now())
 
-  lessons     Lesson[]
-  enrollments Enrollment[]
+  lessons            Lesson[]
+  enrollments        Enrollment[]
+  diagnosticAttempts DiagnosticAttempt[]
 }
 
 model Enrollment {
@@ -60,6 +63,9 @@ model Lesson {
   standard String
   title    String       @default("Untitled Lesson")
   status   LessonStatus @default(GENERATING)
+  publishedAt   DateTime?
+  publishedById String?
+  publishedBy   User?      @relation("PublishedLessons", fields: [publishedById], references: [id])
 
   foundational Json?
   gradeLevel   Json?
@@ -88,11 +94,21 @@ model LearnerProfile {
   user         User          @relation(fields: [userId], references: [id])
 
   readingLevel  ReadingLevel  @default(GRADE_LEVEL)
+  diagnosticReadingLevel ReadingLevel?
+  gradeLevelLabel String?
+  readingLexile Int?
+  mathLevel     MathLevel     @default(GRADE_LEVEL)
+  diagnosticMathLevel MathLevel?
   language      String        @default("en")
   bandwidthMode BandwidthMode @default(FULL)
   fontSize      FontSize      @default(MEDIUM)
   highContrast  Boolean       @default(false)
   dyslexiaFont  Boolean       @default(false)
+  screenReaderMode Boolean    @default(false)
+  reducedMotion Boolean       @default(false)
+  preferredContentFormat ContentFormat @default(MIXED_MEDIA)
+  supportFlags Json?
+  recommendedProfilePatch Json?
   ttsEnabled    Boolean       @default(false)
   ttsProvider   TtsProvider   @default(WEB_SPEECH)
 
@@ -123,6 +139,18 @@ enum TtsProvider {
   WEB_SPEECH
 }
 
+enum MathLevel {
+  BELOW_GRADE
+  GRADE_LEVEL
+  ADVANCED
+}
+
+enum ContentFormat {
+  MIXED_MEDIA
+  TEXT_FOCUSED
+  AUDIO_FOCUSED
+}
+
 // ─── Quiz Attempts ────────────────────────────────────────────────────────────
 model QuizAttempt {
   id             String       @id @default(cuid())
@@ -138,6 +166,39 @@ model QuizAttempt {
 
   @@index([lessonId])
   @@index([userId])
+}
+
+model DiagnosticAttempt {
+  id             String           @id @default(cuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id])
+  classId        String
+  class          Class            @relation(fields: [classId], references: [id])
+  domain         DiagnosticDomain
+  status         DiagnosticStatus @default(COMPLETED)
+  questionSetKey String
+  responses      Json
+  score          Int
+  totalQuestions Int
+  inferredReadingLevel ReadingLevel?
+  inferredMathLevel    MathLevel?
+  recommendedProfilePatch Json?
+  completedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([classId])
+  @@index([domain])
+}
+
+enum DiagnosticDomain {
+  READING
+  MATH
+}
+
+enum DiagnosticStatus {
+  COMPLETED
+  REVIEWED
 }
 
 // ─── Engagement Events ────────────────────────────────────────────────────────

@@ -35,6 +35,7 @@ router.post('/:lessonId/submit', requireAuth, async (req, res) => {
       allowTeacherOwner: false,
       allowEnrolledStudent: true,
       requireReady: true,
+      requirePublishedForStudents: true,
     });
 
     const levelData = lesson[LEVEL_FIELD[validLevel]];

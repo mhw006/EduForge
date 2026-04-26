@@ -188,6 +188,8 @@ async function testAdaptation(prisma) {
       standard: '__smoke_test__',
       title: '__smoke_test__',
       status: 'READY',
+      publishedAt: new Date(),
+      publishedById: 'demo_teacher_001',
       foundational: synthLevel('Foundational'),
       gradeLevel:   synthLevel('Grade Level'),
       advanced:     synthLevel('Advanced'),

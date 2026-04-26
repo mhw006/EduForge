@@ -15,6 +15,7 @@ async function adaptContent(req, res, next) {
       allowTeacherOwner: false,
       allowEnrolledStudent: true,
       logViewEvent: true,
+      requirePublishedForStudents: true,
     });
 
     next();

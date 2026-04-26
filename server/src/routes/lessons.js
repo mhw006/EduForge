@@ -5,6 +5,7 @@ const { adaptContent } = require('../middleware/adapt');
 const { generateLessonStream } = require('../services/lessonforge');
 const { assertLessonAccess } = require('../lib/lesson-access');
 const { isHttpError } = require('../lib/http-error');
+const { normalizeLessonPayload } = require('../lib/lesson-schema');
 const router = express.Router();
 
 // ─── POST /api/lessons — Create lesson record, return ID ─────────────────────
@@ -34,6 +35,128 @@ router.post('/', requireTeacher, async (req, res) => {
   });
 
   res.status(202).json({ lessonId: lesson.id });
+});
+
+// ─── PATCH /api/lessons/:id ───────────────────────────────────────────────────
+// Teacher can edit lesson metadata/content before publishing
+router.patch('/:id', requireTeacher, async (req, res) => {
+  try {
+    const { lesson } = await assertLessonAccess({
+      lessonId: req.params.id,
+      userId: req.auth?.userId || req.user?.id,
+      allowTeacherOwner: true,
+      allowEnrolledStudent: false,
+    });
+
+    const allowedFields = ['title', 'foundational', 'gradeLevel', 'advanced'];
+    const updateData = {};
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updateData[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'No editable lesson fields were provided' });
+    }
+
+    const mergedLessonPayload = normalizeLessonPayload({
+      title: updateData.title ?? lesson.title,
+      foundational: updateData.foundational ?? lesson.foundational,
+      gradeLevel: updateData.gradeLevel ?? lesson.gradeLevel,
+      advanced: updateData.advanced ?? lesson.advanced,
+    });
+
+    const updatedLesson = await prisma.lesson.update({
+      where: { id: lesson.id },
+      data: {
+        title: mergedLessonPayload.title,
+        foundational: mergedLessonPayload.foundational,
+        gradeLevel: mergedLessonPayload.gradeLevel,
+        advanced: mergedLessonPayload.advanced,
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        publishedAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json({ lesson: updatedLesson });
+  } catch (err) {
+    if (isHttpError(err)) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/publish', requireTeacher, async (req, res) => {
+  try {
+    const { lesson } = await assertLessonAccess({
+      lessonId: req.params.id,
+      userId: req.auth?.userId || req.user?.id,
+      allowTeacherOwner: true,
+      allowEnrolledStudent: false,
+      requireReady: true,
+    });
+
+    const publishedLesson = await prisma.lesson.update({
+      where: { id: lesson.id },
+      data: {
+        publishedAt: new Date(),
+        publishedById: req.auth?.userId || req.user?.id,
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        publishedAt: true,
+      },
+    });
+
+    res.json({ lesson: publishedLesson });
+  } catch (err) {
+    if (isHttpError(err)) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/unpublish', requireTeacher, async (req, res) => {
+  try {
+    const { lesson } = await assertLessonAccess({
+      lessonId: req.params.id,
+      userId: req.auth?.userId || req.user?.id,
+      allowTeacherOwner: true,
+      allowEnrolledStudent: false,
+    });
+
+    const unpublishedLesson = await prisma.lesson.update({
+      where: { id: lesson.id },
+      data: {
+        publishedAt: null,
+        publishedById: null,
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        publishedAt: true,
+      },
+    });
+
+    res.json({ lesson: unpublishedLesson });
+  } catch (err) {
+    if (isHttpError(err)) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── GET /api/lessons/:id/stream — SSE streaming ─────────────────────────────
@@ -118,8 +241,10 @@ router.get('/class/:classId', requireAuth, async (req, res) => {
     }
 
     const lessons = await prisma.lesson.findMany({
-      where: { classId, status: 'READY' },
-      select: { id: true, title: true, standard: true, status: true, createdAt: true },
+      where: isTeacher
+        ? { classId, status: 'READY' }
+        : { classId, status: 'READY', publishedAt: { not: null } },
+      select: { id: true, title: true, standard: true, status: true, publishedAt: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -141,6 +266,7 @@ router.get('/:id', requireAuth, adaptContent, async (req, res) => {
       userId: req.auth?.userId || req.user?.id,
       allowTeacherOwner: true,
       allowEnrolledStudent: false,
+      requirePublishedForStudents: false,
     });
 
     res.json({
@@ -148,6 +274,7 @@ router.get('/:id', requireAuth, adaptContent, async (req, res) => {
       title: lesson.title,
       standard: lesson.standard,
       status: lesson.status,
+      publishedAt: lesson.publishedAt,
       foundational: lesson.foundational,
       gradeLevel: lesson.gradeLevel,
       advanced: lesson.advanced,

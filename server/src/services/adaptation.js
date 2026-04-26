@@ -140,6 +140,7 @@ async function buildAuthorizedAdaptedLesson({
   allowTeacherOwner = true,
   allowEnrolledStudent = true,
   logViewEvent = true,
+  requirePublishedForStudents = false,
 }) {
   const { lesson } = await assertLessonAccess({
     lessonId,
@@ -147,6 +148,7 @@ async function buildAuthorizedAdaptedLesson({
     allowTeacherOwner,
     allowEnrolledStudent,
     requireReady: true,
+    requirePublishedForStudents,
   });
 
   return buildAdaptedLesson({ lesson, userId, logViewEvent });
