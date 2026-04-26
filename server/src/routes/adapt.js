@@ -19,7 +19,7 @@ router.post('/:lessonId/audio', requireAuth, adaptLesson, async (req, res) => {
   }
 
   try {
-    const audioUrl = await generateAudio(
+    const { url: audioUrl } = await generateAudio(
       lessonId,
       appliedProfile.readingLevel,
       appliedProfile.language,
