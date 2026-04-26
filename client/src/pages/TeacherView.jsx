@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import BonfireWidget from '../components/BonfireWidget'
 import DashboardCard from '../components/DashboardCard'
 import TaskChecklist from '../components/TaskChecklist'
-import { adaptContent, getClassAnalytics, getClasses, createClass, getClassRoster, deleteClass, getDashboardData, getLessonsByClass, getLesson, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, publishLesson, unpublishLesson, logLessonEdit } from '../services/aiClient'
+import { adaptContent, getClassAnalytics, getClasses, createClass, getClassRoster, deleteClass, getDashboardData, getLessonsByClass, getLesson, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, publishLesson, unpublishLesson, logLessonEdit, deleteLesson } from '../services/aiClient'
 
 // ─── Tab IDs ──────────────────────────────────────────────────────────────────
 const TABS = [
@@ -794,6 +794,24 @@ function LessonForgeTab() {
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   <button type="button" className="bf-btn ghost" onClick={() => openSavedLesson(savedLesson)}>
                     Open
+                  </button>
+                  <button
+                    type="button"
+                    className="bf-btn ghost"
+                    style={{ color: '#fca5a5' }}
+                    onClick={async () => {
+                      if (!confirm(`Delete "${savedLesson.title}"? This cannot be undone.`)) return
+                      try {
+                        await deleteLesson(savedLesson.id)
+                        setSavedLessons((prev) => prev.filter((item) => item.id !== savedLesson.id))
+                        if (savedLessonId === savedLesson.id) setSavedLessonId(null)
+                        setSaveNotice({ kind: 'success', message: `"${savedLesson.title}" deleted.` })
+                      } catch (err) {
+                        setSaveNotice({ kind: 'error', message: `Could not delete: ${err.message}` })
+                      }
+                    }}
+                  >
+                    Delete
                   </button>
                   {!savedLesson.publishedAt ? (
                     <button

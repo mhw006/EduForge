@@ -14,11 +14,14 @@ import {
   logEngagementEvent,
   getLessonDiagnostic,
   submitLessonDiagnostic,
+  joinClass,
+  leaveClass,
 } from '../services/aiClient'
 
 const TABS = [
   { id: 'lessons',     icon: '📚', label: 'Lessons' },
   { id: 'diagnostics', icon: '🎯', label: 'Diagnostics' },
+  { id: 'classes',     icon: '🏫', label: 'My Classes' },
   { id: 'assignments', icon: '📋', label: 'Assignments' },
   { id: 'planner',     icon: '📅', label: 'Study Planner' },
   { id: 'bonfire',     icon: '🔥', label: 'Progress' },
@@ -1732,6 +1735,108 @@ function BonfireTab() {
   )
 }
 
+function MyClassesTab() {
+  const [classes, setClasses] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [joinCode, setJoinCode] = useState('')
+  const [joining, setJoining] = useState(false)
+  const [joinError, setJoinError] = useState(null)
+  const [joinSuccess, setJoinSuccess] = useState(null)
+
+  async function loadClasses() {
+    try {
+      const result = await getClasses('student')
+      setClasses(result.classes || [])
+    } catch (err) {
+      setError(err.message || 'Could not load classes.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { loadClasses() }, [])
+
+  async function handleJoin(e) {
+    e.preventDefault()
+    if (!joinCode.trim()) return
+    setJoining(true)
+    setJoinError(null)
+    setJoinSuccess(null)
+    try {
+      const result = await joinClass(joinCode.trim())
+      setJoinSuccess(result.alreadyEnrolled ? `You're already in ${result.className}.` : `Joined ${result.className}!`)
+      setJoinCode('')
+      loadClasses()
+    } catch (err) {
+      setJoinError(err.message || 'Invalid code.')
+    } finally {
+      setJoining(false)
+    }
+  }
+
+  async function handleLeave(cls) {
+    if (!confirm(`Leave "${cls.name}"? You can rejoin later with the class code.`)) return
+    try {
+      await leaveClass(cls.id)
+      setClasses((prev) => prev.filter((c) => c.id !== cls.id))
+    } catch (err) {
+      alert(err.message || 'Could not leave class.')
+    }
+  }
+
+  return (
+    <div>
+      <section className="bf-card" style={{ marginBottom: '12px' }}>
+        <h2 style={{ marginTop: 0 }}>Join a class</h2>
+        <form onSubmit={handleJoin} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <input
+            className="bf-input"
+            type="text"
+            placeholder="Enter class code"
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value)}
+            style={{ flex: '1', minWidth: '160px' }}
+          />
+          <button className="bf-btn" type="submit" disabled={joining || !joinCode.trim()}>
+            {joining ? 'Joining…' : 'Join'}
+          </button>
+        </form>
+        {joinSuccess && <p style={{ color: '#4ade80', marginTop: '8px' }}>{joinSuccess}</p>}
+        {joinError && <p style={{ color: '#fca5a5', marginTop: '8px' }}>{joinError}</p>}
+      </section>
+
+      <section className="bf-card">
+        <h2 style={{ marginTop: 0 }}>Enrolled classes</h2>
+        {loading && <p className="sv-muted">Loading…</p>}
+        {error && <p style={{ color: '#fca5a5' }}>{error}</p>}
+        {!loading && classes.length === 0 && (
+          <p className="sv-muted">You haven't joined any classes yet. Enter a code above to get started.</p>
+        )}
+        {classes.length > 0 && (
+          <ul className="item-list compact">
+            {classes.map((cls) => (
+              <li key={cls.id}>
+                <div>
+                  <strong>{cls.name}</strong>
+                  <small>{cls.lessonCount ?? 0} lesson{cls.lessonCount !== 1 ? 's' : ''}</small>
+                </div>
+                <button
+                  type="button"
+                  className="bf-btn ghost"
+                  onClick={() => handleLeave(cls)}
+                >
+                  Leave
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  )
+}
+
 export default function StudentView() {
   const [activeTab, setActiveTab] = useState('lessons')
   const current = TABS.find((tab) => tab.id === activeTab)
@@ -1740,6 +1845,7 @@ export default function StudentView() {
     switch (activeTab) {
       case 'lessons':     return <LessonsTab />
       case 'diagnostics': return <DiagnosticsTab />
+      case 'classes':     return <MyClassesTab />
       case 'assignments': return <AssignmentsTab />
       case 'planner':     return <PlannerTab />
       case 'bonfire':     return <BonfireTab />

@@ -84,6 +84,14 @@ export async function deleteClass(classId, { force = false, demoUser = 'teacher'
   return handleResponse(response)
 }
 
+export async function leaveClass(classId, demoUser = 'student') {
+  const response = await apiFetch(`/classes/${classId}/leave`, {
+    method: 'DELETE',
+    demoUser,
+  })
+  return handleResponse(response)
+}
+
 export async function joinClass(joinCode, demoUser = 'student') {
   const response = await apiFetch('/classes/join', {
     method: 'POST',
@@ -174,6 +182,14 @@ export async function saveGeneratedLesson({ classId, className, title, standard,
   const response = await apiFetch('/lessonforge/save', {
     method: 'POST',
     body: { classId, className, title, standard, lesson },
+  })
+  return handleResponse(response)
+}
+
+export async function deleteLesson(lessonId, demoUser = 'teacher') {
+  const response = await apiFetch(`/lessons/${lessonId}`, {
+    method: 'DELETE',
+    demoUser,
   })
   return handleResponse(response)
 }

@@ -142,6 +142,28 @@ router.post('/:id/unpublish', requireTeacher, async (req, res) => {
   }
 });
 
+// ─── DELETE /api/lessons/:id ─────────────────────────────────────────────────
+router.delete('/:id', requireTeacher, async (req, res) => {
+  try {
+    const userId = req.auth?.userId || req.user?.id;
+    const lesson = await prisma.lesson.findFirst({
+      where: { id: req.params.id, teacherId: userId },
+    });
+    if (!lesson) return res.status(404).json({ error: 'Lesson not found or not yours' });
+
+    await prisma.translationCache.deleteMany({ where: { lessonId: lesson.id } });
+    await prisma.audioCache.deleteMany({ where: { lessonId: lesson.id } });
+    await prisma.lessonEdit.deleteMany({ where: { lessonId: lesson.id } });
+    await prisma.quizAttempt.deleteMany({ where: { lessonId: lesson.id } });
+    await prisma.engagementEvent.deleteMany({ where: { lessonId: lesson.id } });
+    await prisma.lesson.delete({ where: { id: lesson.id } });
+
+    res.json({ deleted: true, lessonId: lesson.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/lessons/:id/stream — SSE streaming ─────────────────────────────
 router.get('/:id/stream', requireTeacher, async (req, res) => {
   let lesson;

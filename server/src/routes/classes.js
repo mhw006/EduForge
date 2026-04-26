@@ -152,6 +152,23 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
+// ─── DELETE /api/classes/:id/leave ───────────────────────────────────────────
+// Student leaves (unenrolls from) a class
+router.delete('/:id/leave', protect, async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const deleted = await prisma.enrollment.deleteMany({
+      where: { userId, classId: req.params.id },
+    });
+    if (deleted.count === 0) {
+      return res.status(404).json({ error: 'You are not enrolled in this class' });
+    }
+    res.json({ left: true, classId: req.params.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/classes/:id/students ───────────────────────────────────────────
 // Teacher fetches the student roster for one of their classes
 router.get('/:id/students', protect, requireTeacher, async (req, res) => {
