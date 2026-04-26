@@ -171,9 +171,9 @@ function ProfileToolbar({ profile, languages, saving, onChange }) {
 
 function decodeHtml(str) {
   if (!str) return ''
-  const el = document.createElement('textarea')
+  const el = document.createElement('div')
   el.innerHTML = str
-  return el.value
+  return el.textContent || el.innerText || ''
 }
 
 // Module-level voice cache — survives component unmount/remount on level changes.
@@ -193,7 +193,14 @@ function LessonRenderer({ lesson, profile }) {
   const utteranceRef = useRef(null)
 
   useEffect(() => {
-    return () => window.speechSynthesis?.cancel()
+    return () => {
+      // Only cancel if actually speaking — calling cancel() on an idle
+      // synthesis leaves Chrome in a broken state that silently drops the
+      // next speak() call.
+      if (window.speechSynthesis?.speaking || window.speechSynthesis?.pending) {
+        window.speechSynthesis.cancel()
+      }
+    }
   }, [])
 
   if (!content) {
@@ -216,7 +223,6 @@ function LessonRenderer({ lesson, profile }) {
 
   function speak() {
     if (!content.mainContent) return
-    window.speechSynthesis.cancel()
 
     const TTS_LANG_MAP = {
       es: 'es-ES', fr: 'fr-FR', zh: 'zh-CN', pt: 'pt-BR',
@@ -224,7 +230,6 @@ function LessonRenderer({ lesson, profile }) {
       ru: 'ru-RU', de: 'de-DE', ja: 'ja-JP', it: 'it-IT',
     }
     const targetLang = TTS_LANG_MAP[profile.language] || 'en-US'
-    // Decode HTML entities (DeepL tag_handling:html encodes apostrophes etc.)
     const text = `${decodeHtml(content.overview)}\n\n${decodeHtml(content.mainContent)}`
 
     const utterance = new SpeechSynthesisUtterance(text)
@@ -238,8 +243,13 @@ function LessonRenderer({ lesson, profile }) {
     utterance.onend = () => setSpeaking(false)
     utterance.onerror = () => setSpeaking(false)
     utteranceRef.current = utterance
+
+    // Cancel any ongoing speech, then wait one tick for Chrome's engine to
+    // settle before queuing the new utterance — skipping this delay causes
+    // speak() to be silently dropped after a cancel().
+    window.speechSynthesis.cancel()
     setSpeaking(true)
-    window.speechSynthesis.speak(utterance)
+    setTimeout(() => window.speechSynthesis.speak(utterance), 50)
   }
 
   function stopSpeaking() {
