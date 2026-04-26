@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import BonfireWidget from '../components/BonfireWidget'
 import DashboardCard from '../components/DashboardCard'
 import TaskChecklist from '../components/TaskChecklist'
-import { adaptContent, getClassAnalytics, getClasses, getDashboardData, getLessonsByClass, getLesson, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, publishLesson, logLessonEdit } from '../services/aiClient'
+import { adaptContent, getClassAnalytics, getClasses, createClass, getClassRoster, deleteClass, getDashboardData, getLessonsByClass, getLesson, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, publishLesson, unpublishLesson, logLessonEdit } from '../services/aiClient'
 
 // ─── Tab IDs ──────────────────────────────────────────────────────────────────
 const TABS = [
@@ -36,7 +36,7 @@ function prettyEventLabel(value) {
 
 function ClosedLoopOverviewCard({ analytics }) {
   const metrics = analytics?.loopMetrics
-  if (!metrics) return <p className="sv-muted">Generate activity in class to unlock intelligence signals.</p>
+  if (!metrics) return <p className="sv-muted">Activity will appear here once students open lessons or take quizzes.</p>
 
   const items = [
     { label: 'Published lessons', value: metrics.publishedLessons },
@@ -60,7 +60,7 @@ function ClosedLoopOverviewCard({ analytics }) {
 }
 
 function ClassInsightsCard({ analytics }) {
-  if (!analytics?.insights) return <p className="sv-muted">Insights will appear once students interact with lessons.</p>
+  if (!analytics?.insights) return <p className="sv-muted">Insights will appear once students start opening lessons.</p>
 
   const { insights, readingLevelDistribution, lessonEngagement } = analytics
   const readingMix = readingLevelDistribution?.length
@@ -95,7 +95,7 @@ function ClassInsightsCard({ analytics }) {
 
 function StudentSignalsCard({ analytics }) {
   if (!analytics?.loopMetrics) {
-    return <p className="sv-muted">Student signals will appear after diagnostics, lesson opens, and quiz attempts.</p>
+    return <p className="sv-muted">Student data will appear once they take a diagnostic, open a lesson, or finish a quiz.</p>
   }
 
   const topEvent = analytics.insights?.topEventType
@@ -146,6 +146,152 @@ function RecommendedActionsCard({ analytics, recommendation }) {
   )
 }
 
+// ─── Class Management: create, share invite link, view roster, delete ────────
+function ClassManagementCard({ classes, primaryClassId, onChange }) {
+  const [newClassName, setNewClassName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState(null)
+  const [roster, setRoster] = useState(null)
+  const [rosterLoading, setRosterLoading] = useState(false)
+  const [copyState, setCopyState] = useState(null)
+  const activeClass = classes.find((c) => c.id === primaryClassId)
+
+  useEffect(() => {
+    if (!activeClass) { setRoster(null); return }
+    let cancelled = false
+    setRosterLoading(true)
+    getClassRoster(activeClass.id)
+      .then((r) => { if (!cancelled) setRoster(r) })
+      .catch(() => { if (!cancelled) setRoster(null) })
+      .finally(() => { if (!cancelled) setRosterLoading(false) })
+    return () => { cancelled = true }
+  }, [activeClass?.id])
+
+  function buildInviteLink(joinCode) {
+    return `${window.location.origin}/join?code=${encodeURIComponent(joinCode)}`
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault()
+    if (!newClassName.trim()) return
+    setCreating(true); setCreateError(null)
+    try {
+      await createClass(newClassName.trim())
+      setNewClassName('')
+      onChange?.()
+    } catch (err) {
+      setCreateError(err.message || 'Could not create class.')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleDelete(cls) {
+    const lessonNote = cls.lessonCount > 0 ? ` This will also remove ${cls.lessonCount} lesson(s).` : ''
+    if (!confirm(`Delete "${cls.name}"?${lessonNote} This cannot be undone.`)) return
+    try {
+      await deleteClass(cls.id, { force: cls.lessonCount > 0 })
+      onChange?.()
+    } catch (err) {
+      alert(`Could not delete class: ${err.message}`)
+    }
+  }
+
+  async function copyToClipboard(text, label) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopyState({ label, ok: true })
+    } catch {
+      setCopyState({ label, ok: false })
+    }
+    setTimeout(() => setCopyState(null), 2000)
+  }
+
+  return (
+    <div>
+      <form onSubmit={handleCreate} style={{ display: 'flex', gap: '8px', marginBottom: '0.75rem' }}>
+        <input
+          value={newClassName}
+          onChange={(e) => setNewClassName(e.target.value)}
+          placeholder="New class name (e.g., 6th Grade Science)"
+          style={{ flex: 1 }}
+          maxLength={100}
+        />
+        <button type="submit" className="bf-btn" disabled={creating || !newClassName.trim()}>
+          {creating ? 'Creating…' : 'Create class'}
+        </button>
+      </form>
+      {createError && <p style={{ color: '#f87171', marginBottom: '0.5rem' }}>{createError}</p>}
+
+      {classes.length === 0 ? (
+        <p className="sv-muted">No classes yet. Create one above to get a student join code.</p>
+      ) : (
+        <ul className="item-list compact" style={{ marginBottom: '0.75rem' }}>
+          {classes.map((cls) => (
+            <li key={cls.id}>
+              <div>
+                <strong>{cls.name}</strong>
+                <small>
+                  {cls.studentCount || 0} {cls.studentCount === 1 ? 'student' : 'students'}
+                  {' · '}
+                  {cls.lessonCount || 0} {cls.lessonCount === 1 ? 'lesson' : 'lessons'}
+                </small>
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="bf-btn ghost"
+                  onClick={() => copyToClipboard(cls.joinCode, `code-${cls.id}`)}
+                  title="Copy the join code so students can paste it on the Student page"
+                >
+                  {copyState?.label === `code-${cls.id}` ? (copyState.ok ? '✓ Code copied' : 'Copy failed') : `Code: ${cls.joinCode.slice(0, 8)}…`}
+                </button>
+                <button
+                  type="button"
+                  className="bf-btn ghost"
+                  onClick={() => copyToClipboard(buildInviteLink(cls.joinCode), `link-${cls.id}`)}
+                  title="Copy a one-click invite link"
+                >
+                  {copyState?.label === `link-${cls.id}` ? (copyState.ok ? '✓ Link copied' : 'Copy failed') : 'Copy invite link'}
+                </button>
+                <button
+                  type="button"
+                  className="bf-btn ghost"
+                  onClick={() => handleDelete(cls)}
+                  style={{ color: '#f87171' }}
+                  title="Delete this class permanently"
+                >
+                  Delete
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {activeClass && (
+        <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-subtle, #2a2a2a)' }}>
+          <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Roster · {activeClass.name}</strong>
+          {rosterLoading && <p className="sv-muted">Loading students…</p>}
+          {!rosterLoading && roster?.students?.length === 0 && (
+            <p className="sv-muted">No students enrolled yet. Share the join code or invite link above.</p>
+          )}
+          {!rosterLoading && roster?.students?.length > 0 && (
+            <ul className="item-list compact">
+              {roster.students.map((s) => (
+                <li key={s.id}>
+                  <strong>{s.email}</strong>
+                  <small>Joined {new Date(s.joinedAt).toLocaleDateString()}</small>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DashboardTab({ onNavigate }) {
   const [data,            setData]            = useState(null)
   const [recommendation,  setRecommendation]  = useState(null)
@@ -154,6 +300,22 @@ function DashboardTab({ onNavigate }) {
   const [primaryClassId,  setPrimaryClassId]  = useState(null)
   const [classAnalytics,  setClassAnalytics]  = useState(null)
   const [loading,         setLoading]         = useState(true)
+  const [classesRefreshKey, setClassesRefreshKey] = useState(0)
+
+  // Re-fetch classes after create/delete in ClassManagementCard
+  async function refreshClasses() {
+    try {
+      const r = await getClasses()
+      const next = r?.classes || []
+      setClasses(next)
+      // If current selection vanished, fall back to first
+      if (next.length > 0 && !next.find((c) => c.id === primaryClassId)) {
+        setPrimaryClassId(next[0].id)
+      }
+      if (next.length === 0) setPrimaryClassId(null)
+      setClassesRefreshKey((k) => k + 1)
+    } catch { /* ignore */ }
+  }
 
   useEffect(() => {
     async function load() {
@@ -246,13 +408,13 @@ function DashboardTab({ onNavigate }) {
       </div>
 
       <p style={{ marginBottom: '1.25rem', color: 'var(--muted)' }}>
-        Welcome back, Teacher. This dashboard turns classroom signals into next steps: what students need, what the AI got changed, and where to intervene next.
+        Welcome back. This dashboard shows what your students need, what you have changed in your AI-generated lessons, and what to do next.
       </p>
 
       {classes.length > 0 && (
         <div style={{ marginBottom: '1rem', maxWidth: '280px' }}>
           <label style={{ display: 'grid', gap: '6px' }}>
-            <span className="sv-muted">Class intelligence view</span>
+            <span className="sv-muted">Active class</span>
             <select value={primaryClassId || ''} onChange={(e) => setPrimaryClassId(e.target.value)}>
               {classes.map((cls) => (
                 <option key={cls.id} value={cls.id}>{cls.name}</option>
@@ -263,16 +425,25 @@ function DashboardTab({ onNavigate }) {
       )}
 
       <section className="bf-card recommendation-strip" style={{ marginBottom: '12px' }}>
-        <h3>Closed-Loop Classroom Intelligence</h3>
+        <h3>Class overview</h3>
         <p>
           {activeClassName
-            ? `EduForge is tracking how ${activeClassName} students respond to lessons, how teachers revise AI output, and what support to recommend next.`
-            : 'EduForge will surface classroom intelligence once a class is selected.'}
+            ? `Tracking how ${activeClassName} students engage with lessons, the edits you make to AI drafts, and the next supports we recommend.`
+            : 'Pick a class to see student engagement, your edits to AI drafts, and recommended next steps.'}
         </p>
-        <span>Signals flow from diagnostics, adaptation, engagement, quizzes, and teacher feedback into one instructional loop.</span>
+        <span>Diagnostics, adaptation, engagement, quizzes, and teacher edits all feed this view.</span>
       </section>
 
       <section className="dashboard-grid">
+        <DashboardCard title="My Classes & Invites">
+          <ClassManagementCard
+            key={classesRefreshKey}
+            classes={classes}
+            primaryClassId={primaryClassId}
+            onChange={refreshClasses}
+          />
+        </DashboardCard>
+
         <DashboardCard title="Classroom Snapshot">
           <ClosedLoopOverviewCard analytics={classAnalytics} />
         </DashboardCard>
@@ -527,7 +698,7 @@ function LessonForgeTab() {
   return (
     <div>
       <p className="sv-muted" style={{ marginBottom: '1.25rem' }}>
-        Drop in a learning goal or topic and EduForge will forge a differentiated 3-tier lesson with activities, quiz checks, and vocabulary supports.
+        Enter a standard or topic and EduForge generates three reading levels, vocabulary, activities, and a quiz.
       </p>
 
       <section className="bf-card">
@@ -594,7 +765,7 @@ function LessonForgeTab() {
             <div style={{ fontSize: '1.8rem' }}>⚒️</div>
             <div>
               <strong>Forging at the anvil…</strong>
-              <div className="sv-muted">EduForge is shaping differentiated tiers, vocabulary, activities, and checks.</div>
+              <div className="sv-muted">Generating three reading levels, vocabulary, activities, and a quiz.</div>
             </div>
           </div>
         )}
@@ -624,7 +795,7 @@ function LessonForgeTab() {
                   <button type="button" className="bf-btn ghost" onClick={() => openSavedLesson(savedLesson)}>
                     Open
                   </button>
-                  {!savedLesson.publishedAt && (
+                  {!savedLesson.publishedAt ? (
                     <button
                       type="button"
                       className="bf-btn"
@@ -635,6 +806,23 @@ function LessonForgeTab() {
                       }}
                     >
                       Publish
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="bf-btn ghost"
+                      onClick={async () => {
+                        if (!confirm(`Unpublish "${savedLesson.title}"? Students will no longer see this lesson.`)) return
+                        try {
+                          await unpublishLesson(savedLesson.id)
+                          setSaveNotice({ kind: 'success', message: `${savedLesson.title} is now a draft. Students can't see it.` })
+                          setSavedLessons((prev) => prev.map((item) => item.id === savedLesson.id ? { ...item, publishedAt: null } : item))
+                        } catch (err) {
+                          setSaveNotice({ kind: 'error', message: `Could not unpublish: ${err.message}` })
+                        }
+                      }}
+                    >
+                      Unpublish
                     </button>
                   )}
                 </div>

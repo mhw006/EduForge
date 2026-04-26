@@ -17,10 +17,11 @@ import {
 } from '../services/aiClient'
 
 const TABS = [
-  { id: 'lessons', icon: '📚', label: 'Lessons' },
+  { id: 'lessons',     icon: '📚', label: 'Lessons' },
+  { id: 'diagnostics', icon: '🎯', label: 'Diagnostics' },
   { id: 'assignments', icon: '📋', label: 'Assignments' },
-  { id: 'planner', icon: '📅', label: 'Study Planner' },
-  { id: 'bonfire', icon: '🔥', label: 'Progress' },
+  { id: 'planner',     icon: '📅', label: 'Study Planner' },
+  { id: 'bonfire',     icon: '🔥', label: 'Progress' },
 ]
 
 const READING_LEVELS = [
@@ -212,7 +213,7 @@ function DiagnosticSupportBanner({ profile, lesson, diagnostics }) {
     <section className="bf-card" style={{ marginBottom: '12px' }}>
       <h3 style={{ marginTop: 0 }}>Diagnostic-driven support</h3>
       <p className="sv-muted" style={{ marginBottom: '0.75rem' }}>
-        EduForge is adapting this experience using your latest learner profile and diagnostic signals.
+        EduForge is adapting this lesson based on your latest learner profile and diagnostic results.
       </p>
       <ul className="item-list compact">
         {readingDiagnostic && (
@@ -1275,6 +1276,77 @@ function LessonRenderer({ lesson, profile }) {
   )
 }
 
+// ─── Diagnostics Tab — placement checks live in their own dedicated section ──
+function DiagnosticsTab() {
+  const [profile, setProfile] = useState(null)
+  const [classes, setClasses] = useState([])
+  const [diagnostics, setDiagnostics] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  async function refreshDiagnostics() {
+    try {
+      const result = await getMyDiagnosticSummary('student')
+      setDiagnostics(result)
+    } catch { setDiagnostics(null) }
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const [profileResult, classResult, diagnosticsResult] = await Promise.all([
+          getProfile('student'),
+          getClasses('student'),
+          getMyDiagnosticSummary('student').catch(() => null),
+        ])
+        if (cancelled) return
+        setProfile(profileResult.profile)
+        setClasses(classResult.classes || [])
+        setDiagnostics(diagnosticsResult)
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Could not load diagnostics.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  if (loading) return <p className="sv-muted">Loading your diagnostics…</p>
+  if (error) return <p style={{ color: '#fca5a5' }}>{error}</p>
+
+  if (classes.length === 0) {
+    return (
+      <section className="bf-card">
+        <h2 style={{ marginTop: 0 }}>Diagnostics</h2>
+        <p className="sv-muted">
+          You need to join a class before you can take a diagnostic. Use a join code from your teacher
+          or open an invite link to get started.
+        </p>
+      </section>
+    )
+  }
+
+  return (
+    <div>
+      <p className="sv-muted" style={{ marginBottom: '1rem' }}>
+        Diagnostics are short placement checks. Your results help EduForge pick the right reading and
+        math support level when you open a lesson. Each diagnostic has 13 questions and takes about 8&ndash;10 minutes.
+      </p>
+
+      <DiagnosticLauncher
+        classes={classes}
+        diagnostics={diagnostics}
+        loading={false}
+        profile={profile}
+        onComplete={refreshDiagnostics}
+      />
+    </div>
+  )
+}
+
 async function loadPublishedStudentLessons() {
   const classResult = await getClasses('student')
   const classes = classResult.classes || []
@@ -1482,13 +1554,6 @@ function LessonsTab() {
         )}
 
         {error && <p style={{ color: '#fca5a5' }}>{error}</p>}
-        <DiagnosticLauncher
-          classes={classes}
-          diagnostics={diagnostics}
-          loading={lessonLoading}
-          profile={profile}
-          onComplete={refreshDiagnosticContext}
-        />
         <DiagnosticSupportBanner profile={profile} lesson={adaptedLesson} diagnostics={diagnostics} />
         {lessonLoading ? (
           <p className="sv-muted">
@@ -1673,10 +1738,11 @@ export default function StudentView() {
 
   function renderTab() {
     switch (activeTab) {
-      case 'lessons': return <LessonsTab />
+      case 'lessons':     return <LessonsTab />
+      case 'diagnostics': return <DiagnosticsTab />
       case 'assignments': return <AssignmentsTab />
-      case 'planner': return <PlannerTab />
-      case 'bonfire': return <BonfireTab />
+      case 'planner':     return <PlannerTab />
+      case 'bonfire':     return <BonfireTab />
       default: return null
     }
   }

@@ -2,6 +2,7 @@ import { Link, NavLink, Route, Routes, Navigate } from 'react-router-dom'
 import Landing from './pages/Landing'
 import TeacherView from './pages/TeacherView'
 import StudentView from './pages/StudentView'
+import JoinClass from './pages/JoinClass'
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/teacher" element={<TeacherView />} />
         <Route path="/student" element={<StudentView />} />
+        <Route path="/join" element={<JoinClass />} />
 
         {/* Legacy redirects */}
         <Route path="/dashboard"    element={<Navigate to="/teacher" replace />} />

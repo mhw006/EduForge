@@ -2,11 +2,12 @@ const DIAGNOSTIC_DOMAINS = ['READING', 'MATH'];
 
 const QUESTION_SETS = {
   READING: {
-    key: 'reading-v1',
+    key: 'reading-v2',
     domain: 'READING',
-    title: 'Reading Foundations Diagnostic',
-    description: 'Quick reading comprehension and vocabulary check to estimate the best support tier.',
+    title: 'Reading Diagnostic',
+    description: 'A 13-question check that mixes vocabulary, comprehension, inference, and analysis. Takes about 8 minutes.',
     questions: [
+      // ── Easy: vocabulary & explicit recall ─────────────────────────────────
       {
         id: 'reading-1',
         prompt: 'Which sentence best states the main idea of a short passage?',
@@ -20,7 +21,30 @@ const QUESTION_SETS = {
       },
       {
         id: 'reading-2',
-        prompt: 'If a character slammed the door and crossed their arms, what is the best inference?',
+        prompt: 'What does it mean to "summarize" a text?',
+        options: [
+          { id: 'A', text: 'Copy every sentence word for word' },
+          { id: 'B', text: 'Tell only your favorite part' },
+          { id: 'C', text: 'Give the key ideas in a shorter form' },
+          { id: 'D', text: 'Make up a new ending' },
+        ],
+        correctOptionId: 'C',
+      },
+      {
+        id: 'reading-3',
+        prompt: 'A "context clue" is best described as:',
+        options: [
+          { id: 'A', text: 'A footnote at the bottom of the page' },
+          { id: 'B', text: 'A hint near an unknown word that helps you understand it' },
+          { id: 'C', text: 'A definition copied from a dictionary' },
+          { id: 'D', text: 'A bold title' },
+        ],
+        correctOptionId: 'B',
+      },
+      // ── Medium: inference & evidence ───────────────────────────────────────
+      {
+        id: 'reading-4',
+        prompt: 'A character slammed the door and crossed their arms. What is the best inference?',
         options: [
           { id: 'A', text: 'They are probably upset' },
           { id: 'B', text: 'They are going to sleep' },
@@ -30,46 +54,114 @@ const QUESTION_SETS = {
         correctOptionId: 'A',
       },
       {
-        id: 'reading-3',
-        prompt: 'What does context clue mean?',
+        id: 'reading-5',
+        prompt: 'Which piece of evidence best supports a claim about a story?',
         options: [
-          { id: 'A', text: 'A footnote at the bottom of a page' },
-          { id: 'B', text: 'A clue around an unknown word that helps define it' },
-          { id: 'C', text: 'A sentence copied from a dictionary' },
-          { id: 'D', text: 'A title written in bold' },
-        ],
-        correctOptionId: 'B',
-      },
-      {
-        id: 'reading-4',
-        prompt: 'Which piece of evidence best supports a claim about a text?',
-        options: [
-          { id: 'A', text: 'A direct quote from the passage' },
+          { id: 'A', text: 'A direct quote from the text' },
           { id: 'B', text: 'A guess from memory' },
-          { id: 'C', text: 'A classmate opinion' },
+          { id: 'C', text: 'A classmate\'s opinion' },
           { id: 'D', text: 'A random internet fact' },
         ],
         correctOptionId: 'A',
       },
       {
-        id: 'reading-5',
-        prompt: 'A summary should include:',
+        id: 'reading-6',
+        prompt: 'A passage says, "The roads were slick and the wipers struggled to keep up." What can you infer about the weather?',
         options: [
-          { id: 'A', text: 'Every single sentence from the text' },
-          { id: 'B', text: 'Only your personal opinion' },
-          { id: 'C', text: 'The most important ideas in your own words' },
-          { id: 'D', text: 'Only unfamiliar vocabulary words' },
+          { id: 'A', text: 'It was sunny' },
+          { id: 'B', text: 'It was raining heavily' },
+          { id: 'C', text: 'It was windy but dry' },
+          { id: 'D', text: 'It was snowing lightly' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'reading-7',
+        prompt: 'In the sentence "She was reluctant to speak up in class," the word "reluctant" most likely means:',
+        options: [
+          { id: 'A', text: 'Eager' },
+          { id: 'B', text: 'Hesitant' },
+          { id: 'C', text: 'Loud' },
+          { id: 'D', text: 'Confused' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'reading-8',
+        prompt: 'When an author writes about a topic from one specific point of view, this is called:',
+        options: [
+          { id: 'A', text: 'Theme' },
+          { id: 'B', text: 'Plot' },
+          { id: 'C', text: 'Perspective' },
+          { id: 'D', text: 'Setting' },
+        ],
+        correctOptionId: 'C',
+      },
+      // ── Harder: analysis, theme, author's purpose ──────────────────────────
+      {
+        id: 'reading-9',
+        prompt: 'Which choice best describes the difference between theme and main idea?',
+        options: [
+          { id: 'A', text: 'They are the same thing' },
+          { id: 'B', text: 'Theme is the broader message or lesson; main idea is what the text is mostly about' },
+          { id: 'C', text: 'Theme is found only in poems; main idea only in articles' },
+          { id: 'D', text: 'Main idea is always literal; theme is always a number' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'reading-10',
+        prompt: 'Why might an author repeat a key word or phrase several times in a short text?',
+        options: [
+          { id: 'A', text: 'To fill space' },
+          { id: 'B', text: 'To emphasize an important idea' },
+          { id: 'C', text: 'To confuse the reader' },
+          { id: 'D', text: 'Because they ran out of other words' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'reading-11',
+        prompt: 'An article about climate change cites multiple scientists, dates, and statistics. The author\'s purpose is most likely to:',
+        options: [
+          { id: 'A', text: 'Entertain the reader' },
+          { id: 'B', text: 'Persuade the reader using evidence' },
+          { id: 'C', text: 'Tell a personal story' },
+          { id: 'D', text: 'Describe a fictional event' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'reading-12',
+        prompt: 'When two characters in a story consistently disagree about how to solve a problem, this creates:',
+        options: [
+          { id: 'A', text: 'Setting' },
+          { id: 'B', text: 'Resolution' },
+          { id: 'C', text: 'Conflict' },
+          { id: 'D', text: 'Exposition' },
+        ],
+        correctOptionId: 'C',
+      },
+      {
+        id: 'reading-13',
+        prompt: 'A passage describes a small farming town as "a place where everyone knew the smell of rain before it arrived." This is an example of:',
+        options: [
+          { id: 'A', text: 'Statistics' },
+          { id: 'B', text: 'A direct quotation' },
+          { id: 'C', text: 'Figurative or sensory language' },
+          { id: 'D', text: 'A counterargument' },
         ],
         correctOptionId: 'C',
       },
     ],
   },
   MATH: {
-    key: 'math-v1',
+    key: 'math-v2',
     domain: 'MATH',
-    title: 'Math Readiness Diagnostic',
-    description: 'Quick multi-skill check for number sense, problem solving, and explanation readiness.',
+    title: 'Math Diagnostic',
+    description: 'A 13-question check across number sense, fractions, equations, geometry, and reasoning. Takes about 10 minutes.',
     questions: [
+      // ── Easy: arithmetic & number sense ────────────────────────────────────
       {
         id: 'math-1',
         prompt: 'What is 3/4 written as a decimal?',
@@ -83,7 +175,18 @@ const QUESTION_SETS = {
       },
       {
         id: 'math-2',
-        prompt: 'A student solved 18 + 27 by making 20 + 25. What strategy are they using?',
+        prompt: 'Which list is in order from least to greatest?',
+        options: [
+          { id: 'A', text: '0.5, 1/2, 0.45' },
+          { id: 'B', text: '0.45, 1/2, 0.55' },
+          { id: 'C', text: '0.55, 0.5, 0.45' },
+          { id: 'D', text: '1/2, 0.45, 0.55' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'math-3',
+        prompt: 'A student solved 18 + 27 by writing 20 + 25 instead. What strategy are they using?',
         options: [
           { id: 'A', text: 'Compensation' },
           { id: 'B', text: 'Graphing' },
@@ -92,17 +195,7 @@ const QUESTION_SETS = {
         ],
         correctOptionId: 'A',
       },
-      {
-        id: 'math-3',
-        prompt: 'Which equation represents “five less than twice a number is 17”?',
-        options: [
-          { id: 'A', text: '2x + 5 = 17' },
-          { id: 'B', text: '5 - 2x = 17' },
-          { id: 'C', text: '2x - 5 = 17' },
-          { id: 'D', text: '17 - 5 = 2x + 5' },
-        ],
-        correctOptionId: 'C',
-      },
+      // ── Medium: ratios, percents, areas ────────────────────────────────────
       {
         id: 'math-4',
         prompt: 'What is the area of a rectangle with length 8 and width 3?',
@@ -116,9 +209,98 @@ const QUESTION_SETS = {
       },
       {
         id: 'math-5',
-        prompt: 'Why is showing work useful in math?',
+        prompt: 'A shirt costs $40 and is on sale for 25% off. What is the sale price?',
         options: [
-          { id: 'A', text: 'It helps explain reasoning and catch mistakes' },
+          { id: 'A', text: '$15' },
+          { id: 'B', text: '$25' },
+          { id: 'C', text: '$30' },
+          { id: 'D', text: '$35' },
+        ],
+        correctOptionId: 'C',
+      },
+      {
+        id: 'math-6',
+        prompt: 'If 4 pencils cost $1.20, how much do 10 pencils cost at the same rate?',
+        options: [
+          { id: 'A', text: '$2.40' },
+          { id: 'B', text: '$3.00' },
+          { id: 'C', text: '$3.60' },
+          { id: 'D', text: '$4.00' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'math-7',
+        prompt: 'Which fraction is equivalent to 6/8?',
+        options: [
+          { id: 'A', text: '2/4' },
+          { id: 'B', text: '3/4' },
+          { id: 'C', text: '4/6' },
+          { id: 'D', text: '5/8' },
+        ],
+        correctOptionId: 'B',
+      },
+      // ── Harder: algebraic reasoning ────────────────────────────────────────
+      {
+        id: 'math-8',
+        prompt: 'Which equation represents "five less than twice a number is 17"?',
+        options: [
+          { id: 'A', text: '2x + 5 = 17' },
+          { id: 'B', text: '5 - 2x = 17' },
+          { id: 'C', text: '2x - 5 = 17' },
+          { id: 'D', text: '17 - 5 = 2x + 5' },
+        ],
+        correctOptionId: 'C',
+      },
+      {
+        id: 'math-9',
+        prompt: 'Solve for x: 3x + 4 = 19',
+        options: [
+          { id: 'A', text: 'x = 3' },
+          { id: 'B', text: 'x = 5' },
+          { id: 'C', text: 'x = 7' },
+          { id: 'D', text: 'x = 15' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'math-10',
+        prompt: 'In a coordinate plane, the point (3, -2) is located in which quadrant?',
+        options: [
+          { id: 'A', text: 'Quadrant I' },
+          { id: 'B', text: 'Quadrant II' },
+          { id: 'C', text: 'Quadrant III' },
+          { id: 'D', text: 'Quadrant IV' },
+        ],
+        correctOptionId: 'D',
+      },
+      {
+        id: 'math-11',
+        prompt: 'The mean (average) of 4, 6, 8, and 10 is:',
+        options: [
+          { id: 'A', text: '6' },
+          { id: 'B', text: '7' },
+          { id: 'C', text: '8' },
+          { id: 'D', text: '28' },
+        ],
+        correctOptionId: 'B',
+      },
+      {
+        id: 'math-12',
+        prompt: 'A right triangle has legs of 3 and 4. What is the length of the hypotenuse?',
+        options: [
+          { id: 'A', text: '5' },
+          { id: 'B', text: '6' },
+          { id: 'C', text: '7' },
+          { id: 'D', text: '12' },
+        ],
+        correctOptionId: 'A',
+      },
+      {
+        id: 'math-13',
+        prompt: 'Why is showing your work useful in math?',
+        options: [
+          { id: 'A', text: 'It helps explain your reasoning and catch mistakes' },
           { id: 'B', text: 'It always makes the answer longer' },
           { id: 'C', text: 'It replaces the final answer' },
           { id: 'D', text: 'It is only needed in geometry' },
