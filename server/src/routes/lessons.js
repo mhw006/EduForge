@@ -3,6 +3,8 @@ const prisma = require('../lib/prisma');
 const { requireAuth, requireTeacher } = require('../middleware/auth');
 const { adaptContent } = require('../middleware/adapt');
 const { generateLessonStream } = require('../services/lessonforge');
+const { assertLessonAccess } = require('../lib/lesson-access');
+const { isHttpError } = require('../lib/http-error');
 const router = express.Router();
 
 // ─── POST /api/lessons — Create lesson record, return ID ─────────────────────
@@ -36,8 +38,20 @@ router.post('/', requireTeacher, async (req, res) => {
 
 // ─── GET /api/lessons/:id/stream — SSE streaming ─────────────────────────────
 router.get('/:id/stream', requireTeacher, async (req, res) => {
-  const lesson = await prisma.lesson.findUnique({ where: { id: req.params.id } });
-  if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+  let lesson;
+  try {
+    ({ lesson } = await assertLessonAccess({
+      lessonId: req.params.id,
+      userId: req.auth?.userId || req.user?.id,
+      allowTeacherOwner: true,
+      allowEnrolledStudent: false,
+    }));
+  } catch (err) {
+    if (isHttpError(err)) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return res.status(500).json({ error: err.message });
+  }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -111,6 +125,9 @@ router.get('/class/:classId', requireAuth, async (req, res) => {
 
     res.json({ lessons });
   } catch (err) {
+    if (isHttpError(err)) {
+      return res.status(err.status).json({ error: err.message });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -119,18 +136,12 @@ router.get('/class/:classId', requireAuth, async (req, res) => {
 router.get('/:id', requireAuth, adaptContent, async (req, res) => {
   try {
     if (req.adaptedContent) return res.json(req.adaptedContent);
-
-    const lesson = await prisma.lesson.findUnique({
-      where: { id: req.params.id },
-      include: { class: { select: { teacherId: true } } },
+    const { lesson } = await assertLessonAccess({
+      lessonId: req.params.id,
+      userId: req.auth?.userId || req.user?.id,
+      allowTeacherOwner: true,
+      allowEnrolledStudent: false,
     });
-
-    if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
-
-    const userId = req.auth?.userId || req.user?.id;
-    if (lesson.class.teacherId !== userId) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
 
     res.json({
       id: lesson.id,

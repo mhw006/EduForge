@@ -9,7 +9,7 @@ function hasDeepLKey() {
 }
 
 async function translateText(text, targetLang) {
-  if (!text || targetLang === 'en') return text;
+  if (!text || !targetLang || targetLang.toLowerCase() === 'en') return text;
   if (!hasDeepLKey()) return text; // graceful fallback when no key configured
 
   const response = await axios.post(
@@ -36,8 +36,9 @@ async function translateLesson(content, lessonId, level, targetLang) {
     return content;
   }
 
+  const normalizedTargetLang = targetLang.toUpperCase();
   const cached = await prisma.translationCache.findUnique({
-    where: { lessonId_level_targetLang: { lessonId, level, targetLang } },
+    where: { lessonId_level_targetLang: { lessonId, level, targetLang: normalizedTargetLang } },
   });
   if (cached) return cached.content;
 
@@ -71,11 +72,11 @@ async function translateLesson(content, lessonId, level, targetLang) {
     activities: (content.activities || []).map((a, i) => ({ ...a, instructions: activityInstructions[i] })),
     quiz,
     _translated: true,
-    _targetLang: targetLang,
+    _targetLang: normalizedTargetLang,
   };
 
   await prisma.translationCache.create({
-    data: { lessonId, level, targetLang, content: translated },
+    data: { lessonId, level, targetLang: normalizedTargetLang, content: translated },
   });
 
   return translated;
