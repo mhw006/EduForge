@@ -5,6 +5,11 @@ const {
   getDiagnosticCatalog,
   getQuestionSet,
   scoreDiagnostic,
+  buildDiagnosticFromLesson,
+  getPublicQuestions,
+  scoreLessonDiagnostic,
+  determineReadingLevelFromScore,
+  buildAdaptationReason,
 } = require('../services/diagnostics');
 
 const router = express.Router();
@@ -82,6 +87,56 @@ router.post('/domains/:domain/submit', protect, requireStudent, async (req, res)
       inferredReadingLevel: scored.inferredReadingLevel,
       inferredMathLevel: scored.inferredMathLevel,
       recommendedProfilePatch: scored.recommendedProfilePatch,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/me/summary', protect, requireStudent, async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const attempts = await prisma.diagnosticAttempt.findMany({
+      where: { userId },
+      orderBy: { completedAt: 'desc' },
+      include: {
+        class: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    const latestByDomain = new Map();
+    for (const attempt of attempts) {
+      if (!latestByDomain.has(attempt.domain)) {
+        latestByDomain.set(attempt.domain, attempt);
+      }
+    }
+
+    res.json({
+      latestReading: latestByDomain.get('READING')
+        ? {
+            attemptId: latestByDomain.get('READING').id,
+            classId: latestByDomain.get('READING').classId,
+            className: latestByDomain.get('READING').class?.name || null,
+            score: latestByDomain.get('READING').score,
+            totalQuestions: latestByDomain.get('READING').totalQuestions,
+            inferredLevel: latestByDomain.get('READING').inferredReadingLevel,
+            completedAt: latestByDomain.get('READING').completedAt,
+          }
+        : null,
+      latestMath: latestByDomain.get('MATH')
+        ? {
+            attemptId: latestByDomain.get('MATH').id,
+            classId: latestByDomain.get('MATH').classId,
+            className: latestByDomain.get('MATH').class?.name || null,
+            score: latestByDomain.get('MATH').score,
+            totalQuestions: latestByDomain.get('MATH').totalQuestions,
+            inferredLevel: latestByDomain.get('MATH').inferredMathLevel,
+            completedAt: latestByDomain.get('MATH').completedAt,
+          }
+        : null,
+      totalAttempts: attempts.length,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -201,6 +256,137 @@ router.get('/classes/:classId/students/:studentId', protect, requireTeacher, asy
         profile: enrollment.user.profile,
       },
       attempts,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/diagnostics/:lessonId ─────────────────────────────────────────
+// Returns a 3-question diagnostic derived from the lesson's grade-level quiz.
+// correctAnswer is stripped from the public response.
+router.get('/:lessonId', protect, async (req, res) => {
+  try {
+    const { lessonId } = req.params;
+    const userId = req.auth.userId;
+    const isDemoUser = userId.startsWith('demo_');
+
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { id: true, title: true, classId: true, gradeLevel: true, status: true },
+    });
+
+    if (!lesson) {
+      // Return fallback diagnostic so the UI never breaks
+      const { title, questions } = buildDiagnosticFromLesson(null);
+      return res.json({ lessonId, title, questions: getPublicQuestions(questions) });
+    }
+
+    // Verify access: demo users bypass enrollment, others must be enrolled or be teachers
+    if (!isDemoUser && req.user?.role === 'STUDENT') {
+      const enrollment = await prisma.enrollment.findUnique({
+        where: { userId_classId: { userId, classId: lesson.classId } },
+      });
+      if (!enrollment) {
+        return res.status(403).json({ error: 'Not enrolled in this class' });
+      }
+    }
+
+    const { title, questions } = buildDiagnosticFromLesson(lesson);
+
+    res.json({
+      lessonId: lesson.id,
+      title,
+      questions: getPublicQuestions(questions),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/diagnostics/:lessonId/submit ──────────────────────────────────
+// Scores the student's answers, updates their LearnerProfile readingLevel,
+// and returns an adaptation explanation.
+router.post('/:lessonId/submit', protect, async (req, res) => {
+  try {
+    const { lessonId } = req.params;
+    const { answers } = req.body;
+    const userId = req.auth.userId;
+    const isDemoUser = userId.startsWith('demo_');
+
+    if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+      return res.status(400).json({ error: 'answers must be an object mapping question id to option letter' });
+    }
+
+    // Load lesson to reconstruct the answer key
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { id: true, title: true, classId: true, gradeLevel: true },
+    });
+
+    const { questions } = buildDiagnosticFromLesson(lesson);
+    const { score, totalQuestions, skillsMissed } = scoreLessonDiagnostic(questions, answers);
+    const newReadingLevel = determineReadingLevelFromScore(score, totalQuestions);
+
+    // Read previous reading level and update profile — best-effort for demo compatibility
+    let previousReadingLevel = 'GRADE_LEVEL';
+    try {
+      const existingProfile = await prisma.learnerProfile.findUnique({
+        where: { userId },
+        select: { readingLevel: true },
+      });
+      if (existingProfile) previousReadingLevel = existingProfile.readingLevel;
+
+      await prisma.learnerProfile.upsert({
+        where: { userId },
+        update: {
+          readingLevel: newReadingLevel,
+          diagnosticReadingLevel: newReadingLevel,
+        },
+        create: {
+          userId,
+          readingLevel: newReadingLevel,
+          diagnosticReadingLevel: newReadingLevel,
+        },
+      });
+    } catch (dbErr) {
+      console.warn('Profile update skipped (demo or missing user):', dbErr.message);
+    }
+
+    // Log engagement event — best-effort
+    if (!isDemoUser && lesson) {
+      try {
+        await prisma.engagementEvent.create({
+          data: {
+            userId,
+            lessonId,
+            eventType: 'QUIZ_COMPLETE',
+            metadata: {
+              diagnosticScore: score,
+              totalQuestions,
+              previousReadingLevel,
+              newReadingLevel,
+              skillsMissed,
+              autoAdapted: true,
+            },
+          },
+        });
+      } catch { /* ignore */ }
+    }
+
+    const adaptationReason = buildAdaptationReason({ score, totalQuestions, newReadingLevel, skillsMissed });
+
+    res.json({
+      lessonId,
+      score,
+      totalQuestions,
+      previousReadingLevel,
+      newReadingLevel,
+      skillsMissed,
+      adaptationReason,
+      nextAction: newReadingLevel !== previousReadingLevel
+        ? 'Your lesson has been updated. Scroll down to see the adapted content.'
+        : 'Your current reading level is a great fit. Keep going!',
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
