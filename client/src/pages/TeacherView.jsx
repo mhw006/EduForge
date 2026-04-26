@@ -23,10 +23,68 @@ function summarizeStandard(standard) {
   return standard.length > 110 ? `${standard.slice(0, 107)}...` : standard
 }
 
+// ─── Phase 1+3: Data Flywheel widget — AI vs Final teacher edits ─────────────
+function EditFlywheelWidget({ classId }) {
+  const [summary, setSummary] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!classId) { setLoading(false); return }
+    getEditSummary({ classId })
+      .then((s) => setSummary(s))
+      .catch(() => setSummary(null))
+      .finally(() => setLoading(false))
+  }, [classId])
+
+  if (loading) return <p className="sv-muted">Loading edit metrics…</p>
+  if (!summary || summary.totalEdits === 0) {
+    return (
+      <p className="sv-muted">
+        No edit telemetry yet. Open LessonForge, generate a lesson, and click <strong>Accept</strong>
+        on any section to start populating the flywheel.
+      </p>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.75rem' }}>
+        <div>
+          <small className="sv-muted">Total edits</small>
+          <h3 style={{ margin: 0 }}>{summary.totalEdits}</h3>
+        </div>
+        <div>
+          <small className="sv-muted">Acceptance rate</small>
+          <h3 style={{ margin: 0, color: summary.acceptanceRate > 0.7 ? '#4ade80' : '#facc15' }}>
+            {Math.round(summary.acceptanceRate * 100)}%
+          </h3>
+        </div>
+        <div>
+          <small className="sv-muted">Avg edit size</small>
+          <h3 style={{ margin: 0 }}>{summary.avgCharDelta} chars</h3>
+        </div>
+      </div>
+      {summary.bySection.length > 0 && (
+        <ul className="item-list compact" style={{ marginTop: '0.5rem' }}>
+          {summary.bySection.slice(0, 5).map((s) => (
+            <li key={s.section}>
+              <strong>{s.section.replace('_', ' ').toLowerCase()}</strong>
+              <small>
+                {s.accepted_as_is || 0} accepted · {s.modified || 0} edited · {s.regenerated || 0} regenerated
+              </small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function DashboardTab({ onNavigate }) {
   const [data,            setData]            = useState(null)
   const [recommendation,  setRecommendation]  = useState(null)
   const [curriculumQueue, setCurriculumQueue] = useState([])
+  const [primaryClassId,  setPrimaryClassId]  = useState(null)
   const [loading,         setLoading]         = useState(true)
 
   useEffect(() => {
@@ -47,6 +105,7 @@ function DashboardTab({ onNavigate }) {
           const classesResponse = await getClasses()
           const classes = classesResponse?.classes || []
           if (classes.length === 0) return
+          setPrimaryClassId(classes[0].id)
 
           const lessonResults = await Promise.all(
             classes.map(async (cls) => {
@@ -148,6 +207,10 @@ function DashboardTab({ onNavigate }) {
               missedDays: 0,
             }}
           />
+        </DashboardCard>
+
+        <DashboardCard title="AI vs Final Edits (Data Flywheel)">
+          <EditFlywheelWidget classId={primaryClassId} />
         </DashboardCard>
       </section>
 

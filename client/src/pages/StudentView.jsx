@@ -7,6 +7,7 @@ import {
   getProfile,
   getTranslationLanguages,
   updateProfile,
+  logEngagementEvent,
 } from '../services/aiClient'
 
 const TABS = [
@@ -396,6 +397,22 @@ function LessonsTab() {
     setProfile(nextProfile)
     setSaving(true)
     setSuggestedBandwidth(null)
+
+    // Phase 3: log engagement events for telemetry. Fire-and-forget — no await.
+    if (selectedLessonId) {
+      if ('language' in updates) {
+        logEngagementEvent({ lessonId: selectedLessonId, eventType: 'LANGUAGE_TOGGLE',
+          metadata: { from: profile.language, to: updates.language } })
+      }
+      if ('bandwidthMode' in updates) {
+        logEngagementEvent({ lessonId: selectedLessonId, eventType: 'BANDWIDTH_CHANGE',
+          metadata: { from: profile.bandwidthMode, to: updates.bandwidthMode } })
+      }
+      if ('ttsEnabled' in updates) {
+        logEngagementEvent({ lessonId: selectedLessonId, eventType: 'TTS_TOGGLE',
+          metadata: { enabled: updates.ttsEnabled } })
+      }
+    }
 
     try {
       const result = await updateProfile(updates, 'student')
