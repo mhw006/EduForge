@@ -74,6 +74,7 @@ router.patch('/:id', requireTeacher, async (req, res) => {
       },
       select: { id: true, title: true, status: true, updatedAt: true },
     });
+    await prisma.translationCache.deleteMany({ where: { lessonId: lesson.id } });
 
     res.json({ lesson: updated });
   } catch (err) {
@@ -187,6 +188,7 @@ router.get('/:id/stream', requireTeacher, async (req, res) => {
           advanced: parsed.advanced,
         },
       }).catch(() => {});
+      await prisma.translationCache.deleteMany({ where: { lessonId: lesson.id } }).catch(() => {});
       sendEvent('complete', { lessonId: lesson.id, title: parsed.title });
       res.end();
     },

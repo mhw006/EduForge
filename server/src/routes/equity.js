@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
+const { requireTeacher } = require('../middleware/auth');
 const { adaptContentForLearner } = require('../services/equity');
 
 // ─── POST /api/equity/adapt ───────────────────────────────────────────────────
 // Adapts a topic or lesson content for a specific learner profile.
 // Handles language, reading level, accessibility, and bandwidth constraints.
-router.post('/adapt', async (req, res) => {
+router.post('/adapt', requireTeacher, async (req, res) => {
   const { topic, profile } = req.body;
 
   if (!topic || !topic.trim()) {

@@ -1048,6 +1048,229 @@ button {
   margin-top: 8px;
 }
 
+.lesson-mode-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 4px;
+}
+
+.lesson-mode-content {
+  display: grid;
+  gap: 14px;
+}
+
+.lesson-mode-panel {
+  border: 1px solid rgba(146, 166, 223, 0.2);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(9, 19, 38, 0.7);
+  display: grid;
+  gap: 14px;
+}
+
+.lesson-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.lesson-progress-header,
+.lesson-step-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lesson-progress-header h3 {
+  margin-bottom: 2px;
+}
+
+.lesson-progress-header strong {
+  color: #ffd7b4;
+}
+
+.lesson-progress-track {
+  height: 9px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(151, 171, 228, 0.16);
+}
+
+.lesson-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(110deg, #ffb45e, #5c72ff);
+  transition: width 0.18s ease;
+}
+
+.lesson-step-controls .bf-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.flashcard {
+  min-height: 150px;
+  border: 1px solid rgba(146, 166, 223, 0.22);
+  border-radius: 12px;
+  padding: 16px;
+  background: rgba(12, 22, 44, 0.76);
+  color: var(--text);
+  display: grid;
+  align-content: space-between;
+  gap: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flashcard span {
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.flashcard small {
+  color: #ffd7b4;
+}
+
+.flashcard.flipped {
+  border-color: rgba(255, 159, 67, 0.48);
+  background: rgba(45, 30, 16, 0.58);
+}
+
+.cloze-list,
+.practice-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.cloze-list li,
+.practice-list li {
+  border: 1px solid rgba(146, 166, 223, 0.18);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(12, 21, 43, 0.72);
+  display: grid;
+  gap: 9px;
+}
+
+.cloze-list p,
+.practice-list p {
+  margin: 0;
+}
+
+.cloze-list input {
+  width: min(320px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(8, 15, 31, 0.86);
+  color: var(--text);
+  padding: 9px 11px;
+}
+
+.answer-correct {
+  color: #86efac;
+}
+
+.answer-review {
+  color: #ffd7b4;
+}
+
+.student-quiz.interactive {
+  padding-left: 0;
+  list-style: none;
+}
+
+.quiz-option-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.quiz-option {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(8, 15, 31, 0.74);
+  color: var(--text);
+  padding: 9px 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.quiz-option.selected {
+  border-color: rgba(92, 114, 255, 0.78);
+  background: rgba(92, 114, 255, 0.18);
+}
+
+.quiz-option.correct {
+  border-color: rgba(74, 222, 128, 0.55);
+  background: rgba(5, 30, 18, 0.65);
+}
+
+.visual-map {
+  display: grid;
+  gap: 12px;
+}
+
+.visual-node,
+.visual-step,
+.focus-plan div {
+  border: 1px solid rgba(146, 166, 223, 0.2);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(9, 19, 38, 0.7);
+}
+
+.visual-node.primary {
+  border-color: rgba(255, 159, 67, 0.4);
+  background: rgba(45, 30, 16, 0.5);
+}
+
+.visual-node span,
+.visual-step span,
+.focus-plan span {
+  display: block;
+  color: #ffd7b4;
+  font-weight: 800;
+  margin-bottom: 5px;
+}
+
+.visual-node p,
+.visual-step p,
+.focus-plan p {
+  margin: 0;
+  color: #dbe7ff;
+}
+
+.visual-branches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.visual-steps,
+.focus-plan {
+  display: grid;
+  gap: 10px;
+}
+
+.visual-step strong {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 8px;
+  background: rgba(92, 114, 255, 0.22);
+  color: #c7d2fe;
+}
+
 .student-font-small { font-size: 14px; }
 .student-font-medium { font-size: 16px; }
 .student-font-large { font-size: 18px; }

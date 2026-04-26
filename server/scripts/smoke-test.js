@@ -12,7 +12,8 @@ require('dotenv').config();
 const { spawn } = require('child_process');
 const path = require('path');
 
-const BASE = `http://localhost:${process.env.PORT || 3001}`;
+const SMOKE_PORT = process.env.SMOKE_PORT || '3101';
+const BASE = `http://localhost:${SMOKE_PORT}`;
 const results = [];
 
 function log(name, ok, detail = '') {
@@ -409,7 +410,7 @@ async function main() {
   // Boot server as subprocess so we test the real wire
   console.log('\n[boot] starting server subprocess...');
   const child = spawn(process.execPath, [path.join(__dirname, '..', 'src/index.js')], {
-    env: { ...process.env, PORT: process.env.PORT || '3001' },
+    env: { ...process.env, ALLOW_DEMO_AUTH: 'true', PORT: SMOKE_PORT },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 

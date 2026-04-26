@@ -43,12 +43,14 @@ CRITICAL OUTPUT RULES:
 
 function buildUserPrompt(standard, gradeLevel, subject) {
   const detail = getDetailInstructions();
+  const contextBlock = buildContextBlock(standard);
 
   return `Generate a complete differentiated lesson for:
 
 STANDARD: "${standard}"
 GRADE LEVEL: ${gradeLevel}
 SUBJECT: ${subject}
+${contextBlock ? `\n${contextBlock}\n` : ''}
 
 Length targets for fast classroom/demo use:
 - overview: ${detail.overview}

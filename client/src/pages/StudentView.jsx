@@ -58,12 +58,6 @@ const DEFAULT_LANGUAGES = [
   { code: 'tl', label: 'Tagalog' },
 ]
 
-const SAMPLE_ASSIGNMENTS = [
-  { id: 'a1', title: 'Textual Evidence Quiz', due: '2026-04-28', status: 'Due soon', course: 'ELA' },
-  { id: 'a2', title: 'Evidence Paragraph Draft', due: '2026-04-30', status: 'Not started', course: 'ELA' },
-  { id: 'a3', title: 'Vocabulary Review', due: '2026-05-02', status: 'In progress', course: 'ELA' },
-]
-
 const TODAY = new Date()
 
 function getFontClass(fontSize) {
@@ -530,6 +524,158 @@ const BANDWIDTH_LABELS = {
   TEXT_ONLY: 'Text Only',
 }
 
+const LESSON_MODES = [
+  { id: 'interactive', label: 'Interactive lesson' },
+  { id: 'flashcards', label: 'Flashcards' },
+  { id: 'cloze', label: 'Fill-in-the-blank' },
+  { id: 'quiz', label: 'Quiz mode' },
+  { id: 'visual', label: 'Visual explanation' },
+  { id: 'practice', label: 'Practice problems' },
+  { id: 'plan', label: 'Daily focus plan' },
+]
+
+function stripHtml(value) {
+  if (!value) return ''
+  const html = String(value).replace(/<\/(p|div|li|h[1-6])>/gi, '</$1>\n')
+  if (typeof document === 'undefined') return html.replace(/<[^>]+>/g, ' ')
+  const el = document.createElement('div')
+  el.innerHTML = html
+  return el.textContent || el.innerText || ''
+}
+
+function getLessonSections(content) {
+  const sections = []
+  if (content?.overview) {
+    sections.push({ title: 'Overview', body: stripHtml(content.overview) })
+  }
+
+  const mainText = stripHtml(content?.mainContent)
+  const paragraphs = mainText
+    .split(/\n{2,}|(?<=[.!?])\s+(?=[A-Z0-9])/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 40)
+
+  if (paragraphs.length > 0) {
+    paragraphs.slice(0, 5).forEach((paragraph, index) => {
+      sections.push({ title: `Section ${index + 1}`, body: paragraph })
+    })
+  } else if (mainText) {
+    sections.push({ title: 'Lesson Content', body: mainText })
+  }
+
+  return sections.length > 0 ? sections : [{ title: 'Lesson', body: 'This lesson is ready for review.' }]
+}
+
+function getVocabulary(content) {
+  return (content?.keyVocabulary || []).filter((item) => item?.term && item?.definition)
+}
+
+function getOptionLetter(option, fallbackIndex) {
+  const match = String(option || '').trim().match(/^([A-D])[\).:-]?\s/i)
+  return match ? match[1].toUpperCase() : String.fromCharCode(65 + fallbackIndex)
+}
+
+function splitSentences(text) {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .match(/[^.!?]+[.!?]+|[^.!?]+$/g)
+    ?.map((sentence) => sentence.trim())
+    .filter(Boolean) || []
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function getTermPattern(term) {
+  const words = String(term || '').trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return null
+  const pattern = words
+    .map((word) => {
+      const suffix = word.length > 3 && !/[ses]$/i.test(word) ? '(?:s|es)?' : ''
+      return `${escapeRegExp(word)}${suffix}`
+    })
+    .join('\\s+')
+  return new RegExp(`\\b${pattern}\\b`, 'i')
+}
+
+function findClozeSentence(sentences, term, usedSentences) {
+  const termPattern = getTermPattern(term)
+  const exact = sentences.find((sentence) => termPattern?.test(sentence) && !usedSentences.has(sentence))
+    || sentences.find((sentence) => termPattern?.test(sentence))
+  if (exact) {
+    const match = exact.match(termPattern)?.[0] || term
+    return { sentence: exact, match, answer: match }
+  }
+
+  const termWords = String(term || '').toLowerCase().split(/\W+/).filter((word) => word.length > 3)
+  const partial = sentences.find((sentence) => {
+    if (usedSentences.has(sentence)) return false
+    const lower = sentence.toLowerCase()
+    return termWords.some((word) => lower.includes(word) || lower.includes(`${word}s`))
+  }) || sentences.find((sentence) => {
+    const lower = sentence.toLowerCase()
+    return termWords.some((word) => lower.includes(word) || lower.includes(`${word}s`))
+  })
+
+  if (partial) {
+    const matchedWord = termWords.find((word) => partial.toLowerCase().includes(word))
+    const match = partial.match(new RegExp(`\\b${escapeRegExp(matchedWord)}(?:s|es)?\\b`, 'i'))?.[0]
+    if (match) return { sentence: partial, match, answer: match }
+  }
+
+  return null
+}
+
+function makeClozeItems(content) {
+  const text = stripHtml(content?.mainContent)
+  const sentences = splitSentences(text)
+  const usedSentences = new Set()
+
+  return getVocabulary(content).slice(0, 6).map((item) => {
+    const found = findClozeSentence(sentences, item.term, usedSentences)
+    const sentence = found?.sentence || `${item.term} means ${item.definition}`
+    const answer = found?.answer || item.term
+    const blankTarget = found?.match || item.term
+    usedSentences.add(sentence)
+
+    return {
+      term: item.term,
+      answer,
+      prompt: sentence.replace(new RegExp(`\\b${escapeRegExp(blankTarget)}\\b`, 'i'), '__________'),
+      hint: item.definition,
+    }
+  }).filter((item) => item.prompt.includes('__________'))
+}
+
+function makePracticeItems(content) {
+  const vocab = getVocabulary(content)
+  const activities = content?.activities || []
+  const quiz = content?.quiz || []
+  const items = []
+
+  if (vocab[0]) {
+    items.push({
+      prompt: `Explain ${vocab[0].term} in your own words and connect it to the lesson.`,
+      answer: vocab[0].definition,
+    })
+  }
+  if (activities[0]) {
+    items.push({
+      prompt: `Use the lesson to complete this worked example: ${activities[0].title}. What steps would you take first?`,
+      answer: activities[0].instructions,
+    })
+  }
+  if (quiz[0]) {
+    items.push({
+      prompt: `Create a short answer response for this idea: ${quiz[0].question}`,
+      answer: quiz[0].explanation || `Check your response against the lesson's explanation for answer ${quiz[0].correctAnswer}.`,
+    })
+  }
+
+  return items.slice(0, 3)
+}
+
 // ─── DiagnosticPanel ─────────────────────────────────────────────────────────
 // Self-contained component. Reset per lesson via key={lessonId}.
 function DiagnosticPanel({ lessonId, onComplete }) {
@@ -733,17 +879,254 @@ function AdaptationBanner({ profile }) {
   )
 }
 
+function InteractiveLessonMode({ content }) {
+  const sections = useMemo(() => getLessonSections(content), [content])
+  const [activeSection, setActiveSection] = useState(0)
+  const completedCount = Math.min(activeSection + 1, sections.length)
+  const progress = Math.round((completedCount / sections.length) * 100)
+  const current = sections[activeSection]
+
+  useEffect(() => {
+    setActiveSection(0)
+  }, [content])
+
+  return (
+    <section className="lesson-mode-panel">
+      <div className="lesson-progress-header">
+        <div>
+          <h3>{current.title}</h3>
+          <p className="sv-muted">Section {activeSection + 1} of {sections.length}</p>
+        </div>
+        <strong>{progress}%</strong>
+      </div>
+      <div className="lesson-progress-track" aria-label="Lesson progress">
+        <span style={{ width: `${progress}%` }} />
+      </div>
+      <p className="student-overview">{current.body}</p>
+      <div className="lesson-step-controls">
+        <button className="bf-btn ghost" type="button" onClick={() => setActiveSection((value) => Math.max(0, value - 1))} disabled={activeSection === 0}>
+          Previous
+        </button>
+        <button className="bf-btn" type="button" onClick={() => setActiveSection((value) => Math.min(sections.length - 1, value + 1))} disabled={activeSection === sections.length - 1}>
+          Next section
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function FlashcardsMode({ content }) {
+  const cards = getVocabulary(content)
+  const [flipped, setFlipped] = useState({})
+
+  if (cards.length === 0) return <p className="sv-muted">No vocabulary cards are available for this lesson yet.</p>
+
+  return (
+    <section className="lesson-mode-grid">
+      {cards.map((card) => (
+        <button
+          key={card.term}
+          type="button"
+          className={`flashcard ${flipped[card.term] ? 'flipped' : ''}`}
+          onClick={() => setFlipped((prev) => ({ ...prev, [card.term]: !prev[card.term] }))}
+        >
+          <span>{flipped[card.term] ? card.definition : card.term}</span>
+          <small>{flipped[card.term] ? 'Definition' : 'Tap to flip'}</small>
+        </button>
+      ))}
+    </section>
+  )
+}
+
+function ClozeMode({ content }) {
+  const items = useMemo(() => makeClozeItems(content), [content])
+  const [answers, setAnswers] = useState({})
+  const [checked, setChecked] = useState(false)
+
+  useEffect(() => {
+    setAnswers({})
+    setChecked(false)
+  }, [content])
+
+  if (items.length === 0) return <p className="sv-muted">Add vocabulary to this lesson to unlock fill-in-the-blank practice.</p>
+
+  return (
+    <section className="lesson-mode-panel">
+      <ol className="cloze-list">
+        {items.map((item, index) => {
+          const response = answers[index] || ''
+          const correct = response.trim().toLowerCase() === item.answer.toLowerCase()
+          return (
+            <li key={`${item.term}-${index}`}>
+              <p>{item.prompt}</p>
+              <input
+                type="text"
+                value={response}
+                placeholder="Type the missing term"
+                onChange={(e) => setAnswers((prev) => ({ ...prev, [index]: e.target.value }))}
+              />
+              {checked && (
+                <small className={correct ? 'answer-correct' : 'answer-review'}>
+                  {correct ? 'Correct' : `Review: ${item.answer} - ${item.hint}`}
+                </small>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+      <button className="bf-btn" type="button" onClick={() => setChecked(true)}>Check answers</button>
+    </section>
+  )
+}
+
+function QuizMode({ content }) {
+  const [answers, setAnswers] = useState({})
+  const [submitted, setSubmitted] = useState(false)
+  const quiz = content?.quiz || []
+
+  useEffect(() => {
+    setAnswers({})
+    setSubmitted(false)
+  }, [content])
+
+  if (quiz.length === 0) return <p className="sv-muted">No quiz questions are available for this lesson yet.</p>
+
+  const score = quiz.reduce((total, item, index) => total + (answers[index] === item.correctAnswer ? 1 : 0), 0)
+
+  return (
+    <section className="lesson-mode-panel">
+      <ol className="student-quiz interactive">
+        {quiz.map((item, index) => (
+          <li key={`${item.question}-${index}`}>
+            <strong>{item.question}</strong>
+            <div className="quiz-option-grid">
+              {(item.options || []).map((option, optionIndex) => {
+                const letter = getOptionLetter(option, optionIndex)
+                const selected = answers[index] === letter
+                const correct = submitted && item.correctAnswer === letter
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    className={`quiz-option ${selected ? 'selected' : ''} ${correct ? 'correct' : ''}`}
+                    onClick={() => setAnswers((prev) => ({ ...prev, [index]: letter }))}
+                  >
+                    {option}
+                  </button>
+                )
+              })}
+            </div>
+            {submitted && (
+              <small className={answers[index] === item.correctAnswer ? 'answer-correct' : 'answer-review'}>
+                {answers[index] === item.correctAnswer ? 'Correct.' : `Correct answer: ${item.correctAnswer}.`} {item.explanation}
+              </small>
+            )}
+          </li>
+        ))}
+      </ol>
+      <div className="lesson-step-controls">
+        <button className="bf-btn" type="button" onClick={() => setSubmitted(true)}>Submit quiz</button>
+        {submitted && <strong>{score} / {quiz.length} correct</strong>}
+      </div>
+    </section>
+  )
+}
+
+function VisualExplanationMode({ content }) {
+  const vocab = getVocabulary(content).slice(0, 4)
+  const activities = content?.activities || []
+
+  return (
+    <section className="visual-map">
+      <div className="visual-node primary">
+        <span>Main idea</span>
+        <strong>{content?.overview ? stripHtml(content.overview) : content?.levelLabel || 'Lesson focus'}</strong>
+      </div>
+      <div className="visual-branches">
+        {vocab.map((item) => (
+          <div key={item.term} className="visual-node">
+            <span>{item.term}</span>
+            <p>{item.definition}</p>
+          </div>
+        ))}
+      </div>
+      {activities.length > 0 && (
+        <div className="visual-steps">
+          {activities.slice(0, 3).map((activity, index) => (
+            <div key={activity.title} className="visual-step">
+              <strong>{index + 1}</strong>
+              <span>{activity.title}</span>
+              <p>{activity.instructions}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function PracticeProblemsMode({ content }) {
+  const problems = makePracticeItems(content)
+  const [revealed, setRevealed] = useState({})
+
+  if (problems.length === 0) return <p className="sv-muted">Practice problems will appear when the lesson has vocabulary, activities, or quiz explanations.</p>
+
+  return (
+    <section className="lesson-mode-panel">
+      <ol className="practice-list">
+        {problems.map((problem, index) => (
+          <li key={`${problem.prompt}-${index}`}>
+            <strong>{problem.prompt}</strong>
+            <button className="bf-btn ghost small" type="button" onClick={() => setRevealed((prev) => ({ ...prev, [index]: !prev[index] }))}>
+              {revealed[index] ? 'Hide answer' : 'Reveal answer'}
+            </button>
+            {revealed[index] && <p>{problem.answer}</p>}
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+function DailyFocusPlanMode({ content }) {
+  const firstTerm = getVocabulary(content)[0]
+  const firstActivity = content?.activities?.[0]
+  const firstQuiz = content?.quiz?.[0]
+
+  return (
+    <section className="focus-plan">
+      <div>
+        <span>Read</span>
+        <p>{content?.overview ? stripHtml(content.overview) : 'Review the lesson overview and first section.'}</p>
+      </div>
+      <div>
+        <span>Practice</span>
+        <p>{firstActivity ? `${firstActivity.title}: ${firstActivity.instructions}` : firstTerm ? `Explain ${firstTerm.term} and use it in an example.` : 'Write a three-sentence summary of the lesson.'}</p>
+      </div>
+      <div>
+        <span>Quiz yourself</span>
+        <p>{firstQuiz ? firstQuiz.question : firstTerm ? `What does ${firstTerm.term} mean?` : 'Name the most important idea from the lesson.'}</p>
+      </div>
+    </section>
+  )
+}
+
 function LessonRenderer({ lesson, profile }) {
   const content = lesson?.content
   const [speaking, setSpeaking] = useState(false)
+  const [activeMode, setActiveMode] = useState('interactive')
   const utteranceRef = useRef(null)
   const speechQueueRef = useRef([])
   const speechCancelledRef = useRef(false)
 
   useEffect(() => {
+    setActiveMode('interactive')
+  }, [lesson?.id])
+
+  useEffect(() => {
     return () => {
       speechCancelledRef.current = true
-      // Only cancel if actually speaking — calling cancel() on an idle
+      // Only cancel if actually speaking - calling cancel() on an idle
       // synthesis leaves Chrome in a broken state that silently drops the
       // next speak() call.
       if (window.speechSynthesis?.speaking || window.speechSynthesis?.pending) {
@@ -756,7 +1139,14 @@ function LessonRenderer({ lesson, profile }) {
     return <p className="sv-muted">Choose a lesson to see the adapted student version.</p>
   }
 
-  const terms = (content.keyVocabulary || []).map((item) => item.term).filter(Boolean)
+  const contentKey = [
+    lesson.id,
+    lesson.title,
+    content.levelLabel,
+    content.lexileRange,
+    stripHtml(content.mainContent).slice(0, 120),
+  ].filter(Boolean).join('|')
+
   const requestedLanguage = getLanguageLabel(profile.language)
   const translationStatusLabel = content._translationFailed
     ? `Translation unavailable: ${requestedLanguage}`
@@ -824,12 +1214,24 @@ function LessonRenderer({ lesson, profile }) {
     setSpeaking(false)
   }
 
+  function renderMode() {
+    switch (activeMode) {
+      case 'flashcards': return <FlashcardsMode content={content} />
+      case 'cloze': return <ClozeMode content={content} />
+      case 'quiz': return <QuizMode content={content} />
+      case 'visual': return <VisualExplanationMode content={content} />
+      case 'practice': return <PracticeProblemsMode content={content} />
+      case 'plan': return <DailyFocusPlanMode content={content} />
+      default: return <InteractiveLessonMode content={content} />
+    }
+  }
+
   return (
     <article className={articleClass}>
       <div className="student-status-row">
         <span>{lesson.title}</span>
         {lesson.appliedProfile?.readingLevel && (
-          <span>Adapted · {formatReadingLevel(lesson.appliedProfile.readingLevel)}</span>
+          <span>Adapted - {formatReadingLevel(lesson.appliedProfile.readingLevel)}</span>
         )}
         {lesson.appliedProfile?.diagnosticReadingLevel && lesson.appliedProfile.readingLevel === lesson.appliedProfile.diagnosticReadingLevel && (
           <span>Diagnostic-updated reading level</span>
@@ -845,63 +1247,31 @@ function LessonRenderer({ lesson, profile }) {
         </button>
       )}
 
-      <h2>{content.levelLabel || lesson.title}</h2>
-      {content.lexileRange && <p className="sv-muted">{content.lexileRange}</p>}
-      {content.overview && <p className="student-overview">{decodeHtml(content.overview)}</p>}
+      <div>
+        <h2>{content.levelLabel || lesson.title}</h2>
+        {content.lexileRange && <p className="sv-muted">{content.lexileRange}</p>}
+      </div>
 
-      {terms.length > 0 && (
-        <section>
-          <h3>Key Vocabulary</h3>
-          <ul className="item-list compact">
-            {content.keyVocabulary.map((item) => (
-              <li key={item.term}>
-                <strong>{item.term}</strong>
-                <small>{item.definition}</small>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <div className="lesson-mode-tabs" role="tablist" aria-label="Lesson learning modes">
+        {LESSON_MODES.map((mode) => (
+          <button
+            key={mode.id}
+            type="button"
+            role="tab"
+            aria-selected={activeMode === mode.id}
+            className={`pill ${activeMode === mode.id ? 'active' : ''}`}
+            onClick={() => setActiveMode(mode.id)}
+          >
+            {mode.label}
+          </button>
+        ))}
+      </div>
 
-      {content.mainContent && (
-        <section>
-          <h3>Lesson Content</h3>
-          <div className="student-main-content" dangerouslySetInnerHTML={{ __html: content.mainContent }} />
-        </section>
-      )}
-
-      {content.activities?.length > 0 && (
-        <section>
-          <h3>Activities</h3>
-          <ul className="item-list compact">
-            {content.activities.map((activity) => (
-              <li key={activity.title}>
-                <strong>{activity.title}</strong>
-                <span>{activity.instructions}</span>
-                {activity.estimatedMinutes && <small>{activity.estimatedMinutes} minutes</small>}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {content.quiz?.length > 0 && (
-        <section>
-          <h3>Quick Check</h3>
-          <ol className="student-quiz">
-            {content.quiz.map((item, index) => (
-              <li key={`${item.question}-${index}`}>
-                <strong>{item.question}</strong>
-                <ul>
-                  {(item.options || []).map((option) => (
-                    <li key={option}>{option}</li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
+      <div className="lesson-mode-content">
+        <div key={`${contentKey}:${activeMode}`}>
+          {renderMode()}
+        </div>
+      </div>
     </article>
   )
 }
@@ -975,6 +1345,19 @@ function DiagnosticsTab() {
       />
     </div>
   )
+}
+
+async function loadPublishedStudentLessons() {
+  const classResult = await getClasses('student')
+  const classes = classResult.classes || []
+  const lessons = (
+    await Promise.all(classes.map(async (item) => {
+      const result = await getLessonsByClass(item.id, 'student')
+      return (result.lessons || []).map((lesson) => ({ ...lesson, className: item.name }))
+    }))
+  ).flat().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+  return { classes, lessons }
 }
 
 function LessonsTab() {
@@ -1189,6 +1572,25 @@ function LessonsTab() {
 
 function AssignmentsTab() {
   const [done, setDone] = useState(new Set())
+  const [lessons, setLessons] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadAssignments() {
+      try {
+        const result = await loadPublishedStudentLessons()
+        if (!cancelled) setLessons(result.lessons)
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Could not load assignments.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    loadAssignments()
+    return () => { cancelled = true }
+  }, [])
 
   function toggle(id) {
     setDone((prev) => {
@@ -1198,22 +1600,33 @@ function AssignmentsTab() {
     })
   }
 
+  if (loading) return <p className="sv-muted">Loading assignments...</p>
+  if (error) return <p style={{ color: '#fca5a5' }}>{error}</p>
+
   return (
     <div>
-      <p className="sv-muted" style={{ marginBottom: '1rem' }}>Your upcoming assignments from all classes.</p>
+      <p className="sv-muted" style={{ marginBottom: '1rem' }}>Your published lesson tasks from all classes.</p>
       <ul className="sv-assignment-list">
-        {SAMPLE_ASSIGNMENTS.map((assignment) => (
-          <li key={assignment.id} className={`sv-assignment-item ${done.has(assignment.id) ? 'done' : ''}`}>
+        {lessons.map((lesson) => (
+          <li key={lesson.id} className={`sv-assignment-item ${done.has(lesson.id) ? 'done' : ''}`}>
             <label className="sv-check-row">
-              <input type="checkbox" checked={done.has(assignment.id)} onChange={() => toggle(assignment.id)} />
+              <input type="checkbox" checked={done.has(lesson.id)} onChange={() => toggle(lesson.id)} />
               <div>
-                <strong>{assignment.title}</strong>
-                <span>{assignment.course} - Due {assignment.due}</span>
-                <small className={`sv-badge ${assignment.status === 'Due soon' ? 'warn' : ''}`}>{assignment.status}</small>
+                <strong>{lesson.title}</strong>
+                <span>{lesson.className} - Published {new Date(lesson.publishedAt || lesson.createdAt).toLocaleDateString()}</span>
+                <small className={`sv-badge ${done.has(lesson.id) ? '' : 'warn'}`}>
+                  {done.has(lesson.id) ? 'Done' : 'Ready to review'}
+                </small>
               </div>
             </label>
           </li>
         ))}
+        {lessons.length === 0 && (
+          <li className="sv-assignment-item">
+            <strong>No published lesson tasks yet</strong>
+            <span className="sv-muted">When your teacher publishes a lesson, it will appear here.</span>
+          </li>
+        )}
       </ul>
     </div>
   )
@@ -1221,19 +1634,34 @@ function AssignmentsTab() {
 
 function PlannerTab() {
   const [done, setDone] = useState(new Set())
+  const [lessons, setLessons] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    loadPublishedStudentLessons()
+      .then((result) => { if (!cancelled) setLessons(result.lessons) })
+      .catch(() => { if (!cancelled) setLessons([]) })
+    return () => { cancelled = true }
+  }, [])
+
   const days = useMemo(() => {
-    return Array.from({ length: 14 }, (_, index) => {
+    const tasks = lessons.length > 0 ? lessons : [{ id: 'review', title: 'Review adapted lesson', className: 'Study plan' }]
+    return Array.from({ length: Math.min(14, Math.max(7, tasks.length * 2)) }, (_, index) => {
       const day = new Date(TODAY)
       day.setDate(TODAY.getDate() + index)
-      return day
+      return {
+        date: day,
+        task: tasks[index % tasks.length],
+        action: index % 2 === 0 ? 'Read' : 'Practice',
+      }
     })
-  }, [])
+  }, [lessons])
 
   return (
     <div>
-      <p className="sv-muted" style={{ marginBottom: '1rem' }}>A simple two-week plan keeps the next step clear.</p>
+      <p className="sv-muted" style={{ marginBottom: '1rem' }}>A lesson-based plan keeps the next step clear.</p>
       <div className="sv-calendar">
-        {days.map((day, index) => {
+        {days.map((item, index) => {
           const isDone = done.has(index)
           return (
             <div
@@ -1246,12 +1674,12 @@ function PlannerTab() {
               })}
             >
               <div className="sv-cal-date">
-                <strong>{day.toLocaleDateString('en-US', { weekday: 'short' })}</strong>
-                <span>{day.getMonth() + 1}/{day.getDate()}</span>
+                <strong>{item.date.toLocaleDateString('en-US', { weekday: 'short' })}</strong>
+                <span>{item.date.getMonth() + 1}/{item.date.getDate()}</span>
               </div>
               <div className="sv-cal-task">
                 <span className="sv-type-dot" style={{ background: index % 2 ? '#60a5fa' : '#4ade80' }} />
-                <span>{isDone ? <s>Review adapted lesson</s> : 'Review adapted lesson'}</span>
+                <span>{isDone ? <s>{item.action}: {item.task.title}</s> : `${item.action}: ${item.task.title}`}</span>
               </div>
               {index === 0 && <span className="sv-today-badge">Today</span>}
               {isDone && <span className="sv-done-badge">Done</span>}
@@ -1264,7 +1692,22 @@ function PlannerTab() {
 }
 
 function BonfireTab() {
-  const [progress, setProgress] = useState({ fuelPoints: 160, studySessions: 5, missedDays: 0 })
+  const [progress, setProgress] = useState({ fuelPoints: 0, studySessions: 0, missedDays: 0 })
+
+  useEffect(() => {
+    let cancelled = false
+    loadPublishedStudentLessons()
+      .then((result) => {
+        if (cancelled) return
+        setProgress((prev) => ({
+          ...prev,
+          fuelPoints: result.lessons.length * 20,
+          studySessions: result.lessons.length,
+        }))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const focusLevel = useMemo(() => {
     if (progress.fuelPoints > 300) return 'High Growth Momentum'

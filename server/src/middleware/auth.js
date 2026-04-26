@@ -13,17 +13,16 @@ const hasRealClerkKeys =
 function isDemoAuthAllowed() {
   return (
     process.env.ALLOW_DEMO_AUTH === 'true' ||
-    process.env.NODE_ENV !== 'production' ||
-    process.env.CLERK_SECRET_KEY?.startsWith('sk_test_')
+    process.env.NODE_ENV === 'test'
   );
 }
 
 function getRequestedDemoUser(req) {
   if (process.env.DISABLE_DEMO_AUTH === 'true') return null;
+  if (!isDemoAuthAllowed()) return null;
   const requested = req.headers['x-demo-user'];
   if (requested === 'student') return 'demo_student_001';
   if (requested === 'teacher') return 'demo_teacher_001';
-  if (!isDemoAuthAllowed()) return null;
   return null;
 }
 
