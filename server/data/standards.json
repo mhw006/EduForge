@@ -1,0 +1,227 @@
+[
+  {
+    "code": "CCSS.ELA-LITERACY.RI.6.1",
+    "subject": "ELA",
+    "gradeBand": "6",
+    "title": "Cite textual evidence for analysis",
+    "fullText": "Cite textual evidence to support analysis of what the text says explicitly as well as inferences drawn from the text.",
+    "keywords": ["evidence", "cite", "inference", "analysis", "informational text"],
+    "related": ["CCSS.ELA-LITERACY.RI.6.2", "CCSS.ELA-LITERACY.RI.6.3", "CCSS.ELA-LITERACY.RL.6.1"]
+  },
+  {
+    "code": "CCSS.ELA-LITERACY.RI.6.2",
+    "subject": "ELA",
+    "gradeBand": "6",
+    "title": "Determine central ideas",
+    "fullText": "Determine a central idea of a text and how it is conveyed through particular details; provide a summary of the text distinct from personal opinions or judgments.",
+    "keywords": ["central idea", "main idea", "summary", "details"],
+    "related": ["CCSS.ELA-LITERACY.RI.6.1", "CCSS.ELA-LITERACY.RI.6.3"]
+  },
+  {
+    "code": "CCSS.ELA-LITERACY.RI.6.3",
+    "subject": "ELA",
+    "gradeBand": "6",
+    "title": "Analyze how an individual, event, or idea is introduced",
+    "fullText": "Analyze in detail how a key individual, event, or idea is introduced, illustrated, and elaborated in a text (e.g., through examples or anecdotes).",
+    "keywords": ["analyze", "key individual", "examples", "anecdotes"],
+    "related": ["CCSS.ELA-LITERACY.RI.6.1", "CCSS.ELA-LITERACY.RI.6.2"]
+  },
+  {
+    "code": "CCSS.ELA-LITERACY.RL.6.1",
+    "subject": "ELA",
+    "gradeBand": "6",
+    "title": "Cite textual evidence (literature)",
+    "fullText": "Cite textual evidence to support analysis of what the text says explicitly as well as inferences drawn from the text.",
+    "keywords": ["literature", "evidence", "cite", "inference"],
+    "related": ["CCSS.ELA-LITERACY.RI.6.1", "CCSS.ELA-LITERACY.RL.6.2"]
+  },
+  {
+    "code": "CCSS.ELA-LITERACY.RL.6.2",
+    "subject": "ELA",
+    "gradeBand": "6",
+    "title": "Determine theme",
+    "fullText": "Determine a theme or central idea of a text and how it is conveyed through particular details; provide a summary of the text distinct from personal opinions or judgments.",
+    "keywords": ["theme", "central idea", "literature", "summary"],
+    "related": ["CCSS.ELA-LITERACY.RL.6.1", "CCSS.ELA-LITERACY.RL.6.3"]
+  },
+  {
+    "code": "CCSS.ELA-LITERACY.W.6.1",
+    "subject": "ELA",
+    "gradeBand": "6",
+    "title": "Write arguments to support claims",
+    "fullText": "Write arguments to support claims with clear reasons and relevant evidence.",
+    "keywords": ["argument", "claim", "evidence", "writing", "persuasive"],
+    "related": ["CCSS.ELA-LITERACY.W.6.4", "CCSS.ELA-LITERACY.RI.6.1"]
+  },
+  {
+    "code": "CCSS.ELA-LITERACY.W.7.1",
+    "subject": "ELA",
+    "gradeBand": "7",
+    "title": "Write arguments with logical reasoning (gr 7)",
+    "fullText": "Write arguments to support claims with clear reasons and relevant evidence, acknowledging alternate or opposing claims.",
+    "keywords": ["argument", "counterargument", "logical reasoning", "evidence"],
+    "related": ["CCSS.ELA-LITERACY.W.6.1", "CCSS.ELA-LITERACY.W.8.1"]
+  },
+  {
+    "code": "CCSS.ELA-LITERACY.RI.9-10.1",
+    "subject": "ELA",
+    "gradeBand": "9-10",
+    "title": "Cite strong textual evidence (high school)",
+    "fullText": "Cite strong and thorough textual evidence to support analysis of what the text says explicitly as well as inferences drawn from the text.",
+    "keywords": ["evidence", "high school", "thorough", "inference"],
+    "related": ["CCSS.ELA-LITERACY.RI.6.1", "CCSS.ELA-LITERACY.RI.11-12.1"]
+  },
+  {
+    "code": "CCSS.MATH.CONTENT.5.NF.B.3",
+    "subject": "Math",
+    "gradeBand": "5",
+    "title": "Interpret a fraction as division",
+    "fullText": "Interpret a fraction as division of the numerator by the denominator (a/b = a ÷ b). Solve word problems involving division of whole numbers leading to answers in the form of fractions or mixed numbers.",
+    "keywords": ["fraction", "division", "word problem", "mixed number"],
+    "related": ["CCSS.MATH.CONTENT.5.NF.A.1", "CCSS.MATH.CONTENT.6.NS.A.1"]
+  },
+  {
+    "code": "CCSS.MATH.CONTENT.6.RP.A.1",
+    "subject": "Math",
+    "gradeBand": "6",
+    "title": "Understand ratio concepts",
+    "fullText": "Understand the concept of a ratio and use ratio language to describe a ratio relationship between two quantities.",
+    "keywords": ["ratio", "proportion", "rate"],
+    "related": ["CCSS.MATH.CONTENT.6.RP.A.2", "CCSS.MATH.CONTENT.6.RP.A.3"]
+  },
+  {
+    "code": "CCSS.MATH.CONTENT.6.RP.A.3",
+    "subject": "Math",
+    "gradeBand": "6",
+    "title": "Use ratio reasoning to solve real-world problems",
+    "fullText": "Use ratio and rate reasoning to solve real-world and mathematical problems, e.g., by reasoning about tables of equivalent ratios, tape diagrams, double number line diagrams, or equations.",
+    "keywords": ["ratio", "rate", "proportional reasoning", "real-world problems"],
+    "related": ["CCSS.MATH.CONTENT.6.RP.A.1", "CCSS.MATH.CONTENT.7.RP.A.1"]
+  },
+  {
+    "code": "CCSS.MATH.CONTENT.7.EE.B.3",
+    "subject": "Math",
+    "gradeBand": "7",
+    "title": "Solve multi-step real-life problems",
+    "fullText": "Solve multi-step real-life and mathematical problems posed with positive and negative rational numbers in any form (whole numbers, fractions, and decimals), using tools strategically.",
+    "keywords": ["multi-step", "rational numbers", "fractions", "decimals", "estimation"],
+    "related": ["CCSS.MATH.CONTENT.7.EE.B.4", "CCSS.MATH.CONTENT.6.RP.A.3"]
+  },
+  {
+    "code": "CCSS.MATH.CONTENT.8.F.A.1",
+    "subject": "Math",
+    "gradeBand": "8",
+    "title": "Understand functions",
+    "fullText": "Understand that a function is a rule that assigns to each input exactly one output. The graph of a function is the set of ordered pairs consisting of an input and the corresponding output.",
+    "keywords": ["function", "input", "output", "graph", "ordered pair"],
+    "related": ["CCSS.MATH.CONTENT.8.F.A.2", "CCSS.MATH.CONTENT.HSF.IF.A.1"]
+  },
+  {
+    "code": "CCSS.MATH.CONTENT.HSA.REI.B.3",
+    "subject": "Math",
+    "gradeBand": "9-12",
+    "title": "Solve linear equations and inequalities",
+    "fullText": "Solve linear equations and inequalities in one variable, including equations with coefficients represented by letters.",
+    "keywords": ["linear equation", "inequality", "algebra", "one variable"],
+    "related": ["CCSS.MATH.CONTENT.HSA.REI.B.4", "CCSS.MATH.CONTENT.8.EE.C.7"]
+  },
+  {
+    "code": "NGSS.MS-LS1-1",
+    "subject": "Science",
+    "gradeBand": "6-8",
+    "title": "Cells as the building blocks of life",
+    "fullText": "Conduct an investigation to provide evidence that living things are made of cells; either one cell or many different numbers and types of cells.",
+    "keywords": ["cells", "biology", "living things", "investigation"],
+    "related": ["NGSS.MS-LS1-2", "NGSS.MS-LS1-3"]
+  },
+  {
+    "code": "NGSS.MS-LS1-5",
+    "subject": "Science",
+    "gradeBand": "6-8",
+    "title": "Genetic and environmental factors",
+    "fullText": "Construct a scientific explanation based on evidence for how environmental and genetic factors influence the growth of organisms.",
+    "keywords": ["genetics", "environment", "growth", "organisms", "evidence"],
+    "related": ["NGSS.MS-LS1-1", "NGSS.MS-LS3-2"]
+  },
+  {
+    "code": "NGSS.MS-ESS2-4",
+    "subject": "Science",
+    "gradeBand": "6-8",
+    "title": "Water cycle",
+    "fullText": "Develop a model to describe the cycling of water through Earth's systems driven by energy from the sun and the force of gravity.",
+    "keywords": ["water cycle", "evaporation", "condensation", "precipitation", "earth systems"],
+    "related": ["NGSS.MS-ESS2-2", "NGSS.MS-ESS2-5"]
+  },
+  {
+    "code": "NGSS.MS-ESS2-5",
+    "subject": "Science",
+    "gradeBand": "6-8",
+    "title": "Weather conditions and air masses",
+    "fullText": "Collect data to provide evidence for how the motions and complex interactions of air masses results in changes in weather conditions.",
+    "keywords": ["weather", "air masses", "data collection", "atmosphere"],
+    "related": ["NGSS.MS-ESS2-4", "NGSS.MS-ESS2-6"]
+  },
+  {
+    "code": "NGSS.MS-PS1-2",
+    "subject": "Science",
+    "gradeBand": "6-8",
+    "title": "Chemical reactions",
+    "fullText": "Analyze and interpret data on the properties of substances before and after the substances interact to determine if a chemical reaction has occurred.",
+    "keywords": ["chemical reaction", "properties", "substances", "data analysis"],
+    "related": ["NGSS.MS-PS1-1", "NGSS.MS-PS1-5"]
+  },
+  {
+    "code": "NGSS.HS-LS2-2",
+    "subject": "Science",
+    "gradeBand": "9-12",
+    "title": "Ecosystem dynamics and biodiversity",
+    "fullText": "Use mathematical representations to support and revise explanations based on evidence about factors affecting biodiversity and populations in ecosystems of different scales.",
+    "keywords": ["ecosystem", "biodiversity", "populations", "mathematical model"],
+    "related": ["NGSS.HS-LS2-1", "NGSS.HS-LS2-7"]
+  },
+  {
+    "code": "NGSS.HS-PS2-1",
+    "subject": "Science",
+    "gradeBand": "9-12",
+    "title": "Newton's second law",
+    "fullText": "Analyze data to support the claim that Newton's second law of motion describes the mathematical relationship among the net force on a macroscopic object, its mass, and its acceleration.",
+    "keywords": ["Newton", "force", "mass", "acceleration", "motion"],
+    "related": ["NGSS.HS-PS2-2", "NGSS.HS-PS2-3"]
+  },
+  {
+    "code": "C3.D2.His.1.6-8",
+    "subject": "Social Studies",
+    "gradeBand": "6-8",
+    "title": "Connect events across time periods",
+    "fullText": "Analyze connections among events and developments in broader historical contexts.",
+    "keywords": ["history", "connections", "events", "context"],
+    "related": ["C3.D2.His.2.6-8", "C3.D2.His.3.6-8"]
+  },
+  {
+    "code": "C3.D2.His.1.9-12",
+    "subject": "Social Studies",
+    "gradeBand": "9-12",
+    "title": "Evaluate historical events in context",
+    "fullText": "Evaluate how historical events and developments were shaped by unique circumstances of time and place as well as broader historical contexts.",
+    "keywords": ["history", "evaluate", "circumstances", "industrial revolution", "context"],
+    "related": ["C3.D2.His.2.9-12", "C3.D2.His.4.9-12"]
+  },
+  {
+    "code": "C3.D2.Civ.1.6-8",
+    "subject": "Social Studies",
+    "gradeBand": "6-8",
+    "title": "Distinguish forms of government",
+    "fullText": "Distinguish the powers and responsibilities of citizens, political parties, interest groups, and the media in a variety of governmental and nongovernmental contexts.",
+    "keywords": ["civics", "government", "citizens", "political parties"],
+    "related": ["C3.D2.Civ.2.6-8", "C3.D2.Civ.3.6-8"]
+  },
+  {
+    "code": "C3.D2.Eco.1.6-8",
+    "subject": "Social Studies",
+    "gradeBand": "6-8",
+    "title": "Economic decision-making",
+    "fullText": "Explain how economic decisions affect the well-being of individuals, businesses, and society.",
+    "keywords": ["economics", "decisions", "well-being", "business", "society"],
+    "related": ["C3.D2.Eco.2.6-8", "C3.D2.Eco.3.6-8"]
+  }
+]

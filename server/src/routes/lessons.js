@@ -82,7 +82,7 @@ router.patch('/:id', requireTeacher, async (req, res) => {
   }
 });
 
-// ─── POST /api/lessons/:id/publish — no-op stub (publishedAt not in schema) ──
+// ─── POST /api/lessons/:id/publish ────────────────────────────────────────────
 router.post('/:id/publish', requireTeacher, async (req, res) => {
   try {
     const { lesson } = await assertLessonAccess({
@@ -92,14 +92,27 @@ router.post('/:id/publish', requireTeacher, async (req, res) => {
       allowEnrolledStudent: false,
       requireReady: true,
     });
-    res.json({ lesson: { id: lesson.id, title: lesson.title, status: lesson.status } });
+    const publishedLesson = await prisma.lesson.update({
+      where: { id: lesson.id },
+      data: {
+        publishedAt: new Date(),
+        publishedById: req.auth?.userId || req.user?.id,
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        publishedAt: true,
+      },
+    });
+    res.json({ lesson: publishedLesson });
   } catch (err) {
     if (isHttpError(err)) return res.status(err.status).json({ error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
 
-// ─── POST /api/lessons/:id/unpublish — no-op stub ────────────────────────────
+// ─── POST /api/lessons/:id/unpublish ──────────────────────────────────────────
 router.post('/:id/unpublish', requireTeacher, async (req, res) => {
   try {
     const { lesson } = await assertLessonAccess({
@@ -108,7 +121,20 @@ router.post('/:id/unpublish', requireTeacher, async (req, res) => {
       allowTeacherOwner: true,
       allowEnrolledStudent: false,
     });
-    res.json({ lesson: { id: lesson.id, title: lesson.title, status: lesson.status } });
+    const unpublishedLesson = await prisma.lesson.update({
+      where: { id: lesson.id },
+      data: {
+        publishedAt: null,
+        publishedById: null,
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        publishedAt: true,
+      },
+    });
+    res.json({ lesson: unpublishedLesson });
   } catch (err) {
     if (isHttpError(err)) return res.status(err.status).json({ error: err.message });
     res.status(500).json({ error: err.message });
@@ -195,8 +221,10 @@ router.get('/class/:classId', requireAuth, async (req, res) => {
     }
 
     const lessons = await prisma.lesson.findMany({
-      where: { classId, status: 'READY' },
-      select: { id: true, title: true, standard: true, status: true, createdAt: true },
+      where: isTeacher
+        ? { classId, status: 'READY' }
+        : { classId, status: 'READY', publishedAt: { not: null } },
+      select: { id: true, title: true, standard: true, status: true, publishedAt: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -224,6 +252,7 @@ router.get('/:id', requireAuth, adaptContent, async (req, res) => {
       title: lesson.title,
       standard: lesson.standard,
       status: lesson.status,
+      publishedAt: lesson.publishedAt,
       foundational: lesson.foundational,
       gradeLevel: lesson.gradeLevel,
       advanced: lesson.advanced,

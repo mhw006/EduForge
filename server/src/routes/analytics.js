@@ -1,7 +1,34 @@
 const express = require('express');
 const { prisma } = require('../db');
-const { requireTeacher } = require('../middleware/auth');
+const { requireAuth, requireTeacher } = require('../middleware/auth');
 const router = express.Router();
+
+// ─── Phase 3: Student engagement event capture ───────────────────────────────
+// Lightweight fire-and-forget endpoint students hit on toggle interactions.
+// Failures here MUST NEVER break student UX — server returns 204 even on bad
+// payloads (we just drop them).
+const VALID_EVENT_TYPES = [
+  'VIEW', 'QUIZ_START', 'QUIZ_COMPLETE',
+  'LANGUAGE_TOGGLE', 'TTS_TOGGLE', 'BANDWIDTH_CHANGE', 'EXPORT_PDF',
+];
+
+router.post('/event', requireAuth, async (req, res) => {
+  const { lessonId, eventType, metadata = {} } = req.body || {};
+  const userId = req.auth?.userId || req.user?.id;
+
+  if (!lessonId || !VALID_EVENT_TYPES.includes(eventType)) {
+    return res.status(204).end(); // silently drop invalid events
+  }
+
+  try {
+    await prisma.engagementEvent.create({
+      data: { userId, lessonId, eventType, metadata },
+    });
+  } catch {
+    // FK violation (lessonId doesn't exist) or other transient — silently drop.
+  }
+  return res.status(204).end();
+});
 
 // ─── GET /api/analytics/:classId ─────────────────────────────────────────────
 router.get('/:classId', requireTeacher, async (req, res) => {

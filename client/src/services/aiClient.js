@@ -93,46 +93,12 @@ export async function getTranslationLanguages(demoUser = 'student') {
   return handleResponse(response)
 }
 
-export async function generateAssignmentBreakdown(assignment) {
-  const response = await apiFetch('/assignment/breakdown', {
-    method: 'POST',
-    body: assignment,
-  })
-
-  return handleResponse(response)
-}
-
-export async function generateExamStudyPlan(exam) {
-  const response = await apiFetch('/exam/plan', {
-    method: 'POST',
-    body: exam,
-  })
-
-  return handleResponse(response)
-}
-
-export async function generateStudyModes(topic) {
-  const response = await apiFetch('/study/modes', {
-    method: 'POST',
-    body: { topic },
-  })
-
-  return handleResponse(response)
-}
-
-export async function recommendNextFocusTask(userProgress) {
-  try {
-    const response = await apiFetch('/focus/recommend', {
-      method: 'POST',
-      body: userProgress,
-    })
-
-    return handleResponse(response)
-  } catch {
-    return {
-      recommendation: 'Demo the student adaptation loop: switch language, reading level, and bandwidth mode on the same lesson.',
-      mode: 'EduEquity',
-    }
+// recommendNextFocusTask: returns a static suggestion for the dashboard.
+// The original /focus/recommend endpoint never existed; this avoids the round-trip + 404.
+export async function recommendNextFocusTask() {
+  return {
+    recommendation: 'Demo the student adaptation loop: switch language, reading level, and bandwidth mode on the same lesson.',
+    mode: 'EduEquity',
   }
 }
 
@@ -162,4 +128,50 @@ export async function adaptContent(topic, profile) {
     body: { topic, profile },
   })
   return handleResponse(response)
+}
+
+// ─── Phase 2: Standards search (RAG corpus) ──────────────────────────────────
+export async function searchStandards(query, limit = 8) {
+  const params = new URLSearchParams()
+  if (query) params.set('q', query)
+  params.set('limit', String(limit))
+  const response = await apiFetch(`/standards/search?${params}`)
+  return handleResponse(response)
+}
+
+// ─── Phase 1: Teacher Feedback Loop ──────────────────────────────────────────
+// Fire-and-forget: failures must never block the teacher's save flow.
+export async function logLessonEdit({ lessonId, level, section, editType, aiVersion, humanVersion = null }) {
+  try {
+    const response = await apiFetch(`/edits/${lessonId}`, {
+      method: 'POST',
+      demoUser: 'teacher',
+      body: { level, section, editType, aiVersion, humanVersion },
+    })
+    if (!response.ok) return null
+    return response.json()
+  } catch {
+    return null
+  }
+}
+
+export async function getEditSummary({ classId, lessonId } = {}) {
+  const params = new URLSearchParams()
+  if (classId) params.set('classId', classId)
+  if (lessonId) params.set('lessonId', lessonId)
+  const response = await apiFetch(`/edits/summary?${params}`, { demoUser: 'teacher' })
+  return handleResponse(response)
+}
+
+// ─── Phase 3: Engagement Telemetry ───────────────────────────────────────────
+// Used by StudentView to log toggle events. Fire-and-forget — student UX never
+// blocks on telemetry.
+export async function logEngagementEvent({ lessonId, eventType, metadata = {} }) {
+  try {
+    await apiFetch('/analytics/event', {
+      method: 'POST',
+      demoUser: 'student',
+      body: { lessonId, eventType, metadata },
+    })
+  } catch { /* ignore */ }
 }

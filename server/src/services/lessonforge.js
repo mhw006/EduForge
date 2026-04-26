@@ -1,5 +1,6 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const { normalizeLessonPayload } = require('../lib/lesson-schema');
+const { buildContextBlock } = require('./standards-retrieval');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const MODEL = process.env.LESSONFORGE_MODEL || 'claude-sonnet-4-5-20250929';

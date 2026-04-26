@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import BonfireWidget from '../components/BonfireWidget'
 import DashboardCard from '../components/DashboardCard'
 import TaskChecklist from '../components/TaskChecklist'
-import { adaptContent, getClasses, getDashboardData, getLessonsByClass, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson } from '../services/aiClient'
+import { adaptContent, getClasses, getDashboardData, getLessonsByClass, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, logLessonEdit, getEditSummary, searchStandards } from '../services/aiClient'
 
 // ─── Tab IDs ──────────────────────────────────────────────────────────────────
 const TABS = [
@@ -23,10 +23,68 @@ function summarizeStandard(standard) {
   return standard.length > 110 ? `${standard.slice(0, 107)}...` : standard
 }
 
+// ─── Phase 1+3: Data Flywheel widget — AI vs Final teacher edits ─────────────
+function EditFlywheelWidget({ classId }) {
+  const [summary, setSummary] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!classId) { setLoading(false); return }
+    getEditSummary({ classId })
+      .then((s) => setSummary(s))
+      .catch(() => setSummary(null))
+      .finally(() => setLoading(false))
+  }, [classId])
+
+  if (loading) return <p className="sv-muted">Loading edit metrics…</p>
+  if (!summary || summary.totalEdits === 0) {
+    return (
+      <p className="sv-muted">
+        No edit telemetry yet. Open LessonForge, generate a lesson, and click <strong>Accept</strong>
+        on any section to start populating the flywheel.
+      </p>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.75rem' }}>
+        <div>
+          <small className="sv-muted">Total edits</small>
+          <h3 style={{ margin: 0 }}>{summary.totalEdits}</h3>
+        </div>
+        <div>
+          <small className="sv-muted">Acceptance rate</small>
+          <h3 style={{ margin: 0, color: summary.acceptanceRate > 0.7 ? '#4ade80' : '#facc15' }}>
+            {Math.round(summary.acceptanceRate * 100)}%
+          </h3>
+        </div>
+        <div>
+          <small className="sv-muted">Avg edit size</small>
+          <h3 style={{ margin: 0 }}>{summary.avgCharDelta} chars</h3>
+        </div>
+      </div>
+      {summary.bySection.length > 0 && (
+        <ul className="item-list compact" style={{ marginTop: '0.5rem' }}>
+          {summary.bySection.slice(0, 5).map((s) => (
+            <li key={s.section}>
+              <strong>{s.section.replace('_', ' ').toLowerCase()}</strong>
+              <small>
+                {s.accepted_as_is || 0} accepted · {s.modified || 0} edited · {s.regenerated || 0} regenerated
+              </small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function DashboardTab({ onNavigate }) {
   const [data,            setData]            = useState(null)
   const [recommendation,  setRecommendation]  = useState(null)
   const [curriculumQueue, setCurriculumQueue] = useState([])
+  const [primaryClassId,  setPrimaryClassId]  = useState(null)
   const [loading,         setLoading]         = useState(true)
 
   useEffect(() => {
@@ -47,6 +105,7 @@ function DashboardTab({ onNavigate }) {
           const classesResponse = await getClasses()
           const classes = classesResponse?.classes || []
           if (classes.length === 0) return
+          setPrimaryClassId(classes[0].id)
 
           const lessonResults = await Promise.all(
             classes.map(async (cls) => {
@@ -149,6 +208,10 @@ function DashboardTab({ onNavigate }) {
             }}
           />
         </DashboardCard>
+
+        <DashboardCard title="AI vs Final Edits (Data Flywheel)">
+          <EditFlywheelWidget classId={primaryClassId} />
+        </DashboardCard>
       </section>
 
       {recommendation && (
@@ -169,16 +232,119 @@ const GRADE_MAP = {
   'Grade 1-3': '2', 'Grade 4-5': '4', 'Grade 6-8': '6', 'Grade 9-12': '10', 'Lexile 900+': '12',
 }
 
+// ─── Phase 1: Per-section AcceptButton (telemetry capture) ───────────────────
+const SECTION_LEVEL_KEY = (level, section) => `${level}::${section}`
+
+function AcceptButton({ lessonId, level, section, aiVersion, accepted, onAccept }) {
+  if (!lessonId) return null
+  const key = SECTION_LEVEL_KEY(level, section)
+  const isAccepted = !!accepted[key]
+  return (
+    <button
+      type="button"
+      className={isAccepted ? 'pill active' : 'pill'}
+      style={{ marginLeft: '0.5rem', fontSize: '0.75em', padding: '4px 10px' }}
+      disabled={isAccepted}
+      onClick={async () => {
+        const result = await logLessonEdit({
+          lessonId,
+          level: levelKeyToEnum(level),
+          section,
+          editType: 'ACCEPTED_AS_IS',
+          aiVersion,
+          humanVersion: aiVersion,
+        })
+        if (result) onAccept(key)
+      }}
+      title="Mark this section as accepted as-is (logs telemetry for the data flywheel)"
+    >
+      {isAccepted ? '✓ Accepted' : 'Accept'}
+    </button>
+  )
+}
+
+// LessonForge UI uses lowercase level keys (foundational/gradeLevel/advanced).
+// LessonEdit schema uses enum strings (FOUNDATIONAL/GRADE_LEVEL/ADVANCED).
+function levelKeyToEnum(key) {
+  return { foundational: 'FOUNDATIONAL', gradeLevel: 'GRADE_LEVEL', advanced: 'ADVANCED' }[key] || 'GRADE_LEVEL'
+}
+
+// ─── Phase 2: Curriculum standards autocomplete ──────────────────────────────
+function StandardAutocomplete({ value, onChange }) {
+  const [suggestions, setSuggestions] = useState([])
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!value || value.length < 2) { setSuggestions([]); return }
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchStandards(value, 6)
+        setSuggestions(r.standards || [])
+      } catch { setSuggestions([]) }
+    }, 250) // debounce — don't hammer the API while user types
+    return () => clearTimeout(t)
+  }, [value])
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        name="standard"
+        value={value}
+        onChange={(e) => { onChange(e); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        placeholder="CCSS.MATH.CONTENT.5.NF.B.3 — type a code or keywords"
+        autoComplete="off"
+        required
+      />
+      {open && suggestions.length > 0 && (
+        <div className="bf-card" style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+          marginTop: 4, padding: 0, maxHeight: 240, overflowY: 'auto',
+        }}>
+          {suggestions.map((s) => (
+            <button
+              key={s.code}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onChange({ target: { name: 'standard', value: `${s.code} — ${s.title}` } })
+                setOpen(false)
+              }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                padding: '10px 12px', background: 'transparent',
+                border: 'none', borderBottom: '1px solid var(--line)',
+                color: 'var(--text)', cursor: 'pointer', fontSize: '0.9em',
+              }}
+            >
+              <strong style={{ color: 'var(--accent)' }}>{s.code}</strong>
+              <span style={{ opacity: 0.6, marginLeft: 8 }}>{s.subject} · gr {s.gradeBand}</span>
+              <div style={{ fontSize: '0.85em', opacity: 0.8 }}>{s.title}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function LessonForgeTab() {
   const [form, setForm] = useState({
     title: '', dueDate: '', description: '',
     standard: '', readingLevel: 'Grade 6-8', subject: 'ELA',
   })
   const [lesson,      setLesson]      = useState(null)
+  const [savedLessonId, setSavedLessonId] = useState(null)
+  const [accepted,    setAccepted]    = useState({}) // { 'foundational::OVERVIEW': true }
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState(null)
   const [saveNotice,  setSaveNotice]  = useState(null)
   const [activeTab,   setActiveTab]   = useState('foundational')
+
+  function markAccepted(key) {
+    setAccepted((prev) => ({ ...prev, [key]: true }))
+  }
 
   function updateField(e) {
     const { name, value } = e.target
@@ -187,7 +353,7 @@ function LessonForgeTab() {
 
   async function submit(e) {
     e.preventDefault()
-    setLoading(true); setError(null); setLesson(null); setSaveNotice(null)
+    setLoading(true); setError(null); setLesson(null); setSaveNotice(null); setAccepted({}); setSavedLessonId(null)
     try {
       const result = await generateLessonPlan({
         standard: form.standard,
@@ -205,6 +371,7 @@ function LessonForgeTab() {
           standard: form.standard,
           lesson: result,
         })
+        setSavedLessonId(saveResult.lesson.id)
         setSaveNotice({ kind: 'success', message: `Saved to PostgreSQL (lesson ID: ${saveResult.lesson.id})` })
       } catch (saveErr) {
         setSaveNotice({ kind: 'error', message: `Generated OK, but save failed: ${saveErr.message || 'Unknown error'}` })
@@ -246,8 +413,7 @@ function LessonForgeTab() {
 
           <label>
             Curriculum standard
-            <input name="standard" value={form.standard} onChange={updateField}
-              placeholder="CCSS.MATH.CONTENT.5.NF.B.3 — Interpret a fraction as division…" required />
+            <StandardAutocomplete value={form.standard} onChange={updateField} />
           </label>
 
           <label>
@@ -312,11 +478,21 @@ function LessonForgeTab() {
                 {currentTier.levelLabel}{' '}
                 <small style={{ opacity: 0.6, fontSize: '0.8em' }}>{currentTier.lexileRange}</small>
               </h3>
+
+              <h4 style={{ display: 'flex', alignItems: 'center' }}>
+                Overview
+                <AcceptButton lessonId={savedLessonId} level={activeTab} section="OVERVIEW"
+                  aiVersion={currentTier.overview} accepted={accepted} onAccept={markAccepted} />
+              </h4>
               <p>{currentTier.overview}</p>
 
               {currentTier.keyVocabulary?.length > 0 && (
                 <>
-                  <h4>Key vocabulary</h4>
+                  <h4 style={{ display: 'flex', alignItems: 'center' }}>
+                    Key vocabulary
+                    <AcceptButton lessonId={savedLessonId} level={activeTab} section="KEY_VOCABULARY"
+                      aiVersion={currentTier.keyVocabulary} accepted={accepted} onAccept={markAccepted} />
+                  </h4>
                   <ul className="item-list compact">
                     {currentTier.keyVocabulary.map(v => (
                       <li key={v.term}><strong>{v.term}</strong><small>{v.definition}</small></li>
@@ -325,12 +501,20 @@ function LessonForgeTab() {
                 </>
               )}
 
-              <h4>Lesson content</h4>
+              <h4 style={{ display: 'flex', alignItems: 'center' }}>
+                Lesson content
+                <AcceptButton lessonId={savedLessonId} level={activeTab} section="MAIN_CONTENT"
+                  aiVersion={currentTier.mainContent} accepted={accepted} onAccept={markAccepted} />
+              </h4>
               <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{currentTier.mainContent}</div>
 
               {currentTier.activities?.length > 0 && (
                 <>
-                  <h4>Activities</h4>
+                  <h4 style={{ display: 'flex', alignItems: 'center' }}>
+                    Activities
+                    <AcceptButton lessonId={savedLessonId} level={activeTab} section="ACTIVITIES"
+                      aiVersion={currentTier.activities} accepted={accepted} onAccept={markAccepted} />
+                  </h4>
                   <ul className="item-list compact">
                     {currentTier.activities.map(a => (
                       <li key={a.title}>
@@ -344,7 +528,11 @@ function LessonForgeTab() {
 
               {currentTier.quiz?.length > 0 && (
                 <>
-                  <h4>Quiz + answer key</h4>
+                  <h4 style={{ display: 'flex', alignItems: 'center' }}>
+                    Quiz + answer key
+                    <AcceptButton lessonId={savedLessonId} level={activeTab} section="QUIZ"
+                      aiVersion={currentTier.quiz} accepted={accepted} onAccept={markAccepted} />
+                  </h4>
                   <ol className="item-list compact">
                     {currentTier.quiz.map((q, i) => (
                       <li key={i}>
