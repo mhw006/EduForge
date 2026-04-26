@@ -147,4 +147,79 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
+// ─── GET /api/classes/:id/students ───────────────────────────────────────────
+// Teacher fetches the student roster for one of their classes
+router.get('/:id/students', protect, requireTeacher, async (req, res) => {
+  try {
+    const teacherId = req.auth.userId;
+    const cls = await prisma.class.findFirst({
+      where: { id: req.params.id, teacherId },
+    });
+    if (!cls) return res.status(404).json({ error: 'Class not found or not yours' });
+
+    const enrollments = await prisma.enrollment.findMany({
+      where: { classId: cls.id },
+      include: { user: { select: { id: true, email: true, role: true, createdAt: true } } },
+      orderBy: { joinedAt: 'asc' },
+    });
+
+    res.json({
+      classId: cls.id,
+      className: cls.name,
+      joinCode: cls.joinCode,
+      students: enrollments.map((e) => ({
+        id: e.user.id,
+        email: e.user.email,
+        joinedAt: e.joinedAt,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── DELETE /api/classes/:id ─────────────────────────────────────────────────
+// Teacher deletes a class. Cascades through enrollments, but blocks if there
+// are still student-visible lessons unless ?force=true is passed.
+router.delete('/:id', protect, requireTeacher, async (req, res) => {
+  try {
+    const teacherId = req.auth.userId;
+    const cls = await prisma.class.findFirst({
+      where: { id: req.params.id, teacherId },
+      include: { _count: { select: { lessons: true } } },
+    });
+    if (!cls) return res.status(404).json({ error: 'Class not found or not yours' });
+
+    const force = req.query.force === 'true';
+    if (cls._count.lessons > 0 && !force) {
+      return res.status(409).json({
+        error: `Class has ${cls._count.lessons} lesson(s). Pass ?force=true to delete anyway (lessons will also be removed).`,
+        lessonCount: cls._count.lessons,
+      });
+    }
+
+    // Cascade: lessons → translation/audio/edits/quiz/engagement → enrollments → class
+    const lessonIds = (await prisma.lesson.findMany({
+      where: { classId: cls.id },
+      select: { id: true },
+    })).map((l) => l.id);
+
+    if (lessonIds.length > 0) {
+      await prisma.translationCache.deleteMany({ where: { lessonId: { in: lessonIds } } });
+      await prisma.audioCache.deleteMany({ where: { lessonId: { in: lessonIds } } });
+      await prisma.lessonEdit.deleteMany({ where: { lessonId: { in: lessonIds } } });
+      await prisma.quizAttempt.deleteMany({ where: { lessonId: { in: lessonIds } } });
+      await prisma.engagementEvent.deleteMany({ where: { lessonId: { in: lessonIds } } });
+      await prisma.lesson.deleteMany({ where: { id: { in: lessonIds } } });
+    }
+    await prisma.diagnosticAttempt.deleteMany({ where: { classId: cls.id } });
+    await prisma.enrollment.deleteMany({ where: { classId: cls.id } });
+    await prisma.class.delete({ where: { id: cls.id } });
+
+    res.json({ deleted: true, classId: cls.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

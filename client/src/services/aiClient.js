@@ -64,6 +64,35 @@ export async function getClasses(demoUser = 'teacher') {
   return handleResponse(response)
 }
 
+export async function createClass(name, demoUser = 'teacher') {
+  const response = await apiFetch('/classes', {
+    method: 'POST',
+    body: { name },
+    demoUser,
+  })
+  return handleResponse(response)
+}
+
+export async function getClassRoster(classId, demoUser = 'teacher') {
+  const response = await apiFetch(`/classes/${classId}/students`, { demoUser })
+  return handleResponse(response)
+}
+
+export async function deleteClass(classId, { force = false, demoUser = 'teacher' } = {}) {
+  const path = `/classes/${classId}${force ? '?force=true' : ''}`
+  const response = await apiFetch(path, { method: 'DELETE', demoUser })
+  return handleResponse(response)
+}
+
+export async function joinClass(joinCode, demoUser = 'student') {
+  const response = await apiFetch('/classes/join', {
+    method: 'POST',
+    body: { joinCode },
+    demoUser,
+  })
+  return handleResponse(response)
+}
+
 export async function getLessonsByClass(classId, demoUser = 'teacher') {
   const response = await apiFetch(`/lessons/class/${classId}`, { demoUser })
   return handleResponse(response)
