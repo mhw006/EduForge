@@ -1,4 +1,5 @@
 const Anthropic = require('@anthropic-ai/sdk');
+const { normalizeLessonPayload } = require('../lib/lesson-schema');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const MODEL = 'claude-sonnet-4-5-20250929';
@@ -115,14 +116,7 @@ function generateLessonStream(standard, gradeLevel, subject, onChunk, onComplete
       try {
         const cleaned = fullContent.replace(/```json\n?|\n?```/g, '').trim();
         const parsed = JSON.parse(cleaned);
-
-        const required = ['title', 'foundational', 'gradeLevel', 'advanced'];
-        const missing = required.filter((k) => !parsed[k]);
-        if (missing.length > 0) {
-          throw new Error(`Missing required keys: ${missing.join(', ')}`);
-        }
-
-        onComplete(parsed);
+        onComplete(normalizeLessonPayload(parsed));
       } catch (parseErr) {
         onError(parseErr);
       }
@@ -146,14 +140,7 @@ async function generateLesson(standard, gradeLevel, subject) {
   const rawContent = message.content[0].text;
   const cleaned = rawContent.replace(/```json\n?|\n?```/g, '').trim();
   const parsed = JSON.parse(cleaned);
-
-  const required = ['title', 'foundational', 'gradeLevel', 'advanced'];
-  const missing = required.filter((k) => !parsed[k]);
-  if (missing.length > 0) {
-    throw new Error(`Missing required keys: ${missing.join(', ')}`);
-  }
-
-  return parsed;
+  return normalizeLessonPayload(parsed);
 }
 
 module.exports = { generateLessonStream, generateLesson };

@@ -3,6 +3,9 @@ const prisma = require('../lib/prisma');
 const { requireAuth, requireTeacher } = require('../middleware/auth');
 const { adaptContent } = require('../middleware/adapt');
 const { generateLessonStream } = require('../services/lessonforge');
+const { assertLessonAccess } = require('../lib/lesson-access');
+const { isHttpError } = require('../lib/http-error');
+const { normalizeLessonPayload } = require('../lib/lesson-schema');
 const router = express.Router();
 
 // ─── POST /api/lessons — Create lesson record, return ID ─────────────────────
@@ -34,10 +37,98 @@ router.post('/', requireTeacher, async (req, res) => {
   res.status(202).json({ lessonId: lesson.id });
 });
 
+// ─── PATCH /api/lessons/:id ───────────────────────────────────────────────────
+router.patch('/:id', requireTeacher, async (req, res) => {
+  try {
+    const { lesson } = await assertLessonAccess({
+      lessonId: req.params.id,
+      userId: req.auth?.userId || req.user?.id,
+      allowTeacherOwner: true,
+      allowEnrolledStudent: false,
+    });
+
+    const allowedFields = ['title', 'foundational', 'gradeLevel', 'advanced'];
+    const updateData = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) updateData[field] = req.body[field];
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'No editable lesson fields were provided' });
+    }
+
+    const merged = normalizeLessonPayload({
+      title: updateData.title ?? lesson.title,
+      foundational: updateData.foundational ?? lesson.foundational,
+      gradeLevel: updateData.gradeLevel ?? lesson.gradeLevel,
+      advanced: updateData.advanced ?? lesson.advanced,
+    });
+
+    const updated = await prisma.lesson.update({
+      where: { id: lesson.id },
+      data: {
+        title: merged.title,
+        foundational: merged.foundational,
+        gradeLevel: merged.gradeLevel,
+        advanced: merged.advanced,
+      },
+      select: { id: true, title: true, status: true, updatedAt: true },
+    });
+
+    res.json({ lesson: updated });
+  } catch (err) {
+    if (isHttpError(err)) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/lessons/:id/publish — no-op stub (publishedAt not in schema) ──
+router.post('/:id/publish', requireTeacher, async (req, res) => {
+  try {
+    const { lesson } = await assertLessonAccess({
+      lessonId: req.params.id,
+      userId: req.auth?.userId || req.user?.id,
+      allowTeacherOwner: true,
+      allowEnrolledStudent: false,
+      requireReady: true,
+    });
+    res.json({ lesson: { id: lesson.id, title: lesson.title, status: lesson.status } });
+  } catch (err) {
+    if (isHttpError(err)) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/lessons/:id/unpublish — no-op stub ────────────────────────────
+router.post('/:id/unpublish', requireTeacher, async (req, res) => {
+  try {
+    const { lesson } = await assertLessonAccess({
+      lessonId: req.params.id,
+      userId: req.auth?.userId || req.user?.id,
+      allowTeacherOwner: true,
+      allowEnrolledStudent: false,
+    });
+    res.json({ lesson: { id: lesson.id, title: lesson.title, status: lesson.status } });
+  } catch (err) {
+    if (isHttpError(err)) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/lessons/:id/stream — SSE streaming ─────────────────────────────
 router.get('/:id/stream', requireTeacher, async (req, res) => {
-  const lesson = await prisma.lesson.findUnique({ where: { id: req.params.id } });
-  if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+  let lesson;
+  try {
+    ({ lesson } = await assertLessonAccess({
+      lessonId: req.params.id,
+      userId: req.auth?.userId || req.user?.id,
+      allowTeacherOwner: true,
+      allowEnrolledStudent: false,
+    }));
+  } catch (err) {
+    if (isHttpError(err)) return res.status(err.status).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
+  }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -111,6 +202,7 @@ router.get('/class/:classId', requireAuth, async (req, res) => {
 
     res.json({ lessons });
   } catch (err) {
+    if (isHttpError(err)) return res.status(err.status).json({ error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
@@ -120,17 +212,12 @@ router.get('/:id', requireAuth, adaptContent, async (req, res) => {
   try {
     if (req.adaptedContent) return res.json(req.adaptedContent);
 
-    const lesson = await prisma.lesson.findUnique({
-      where: { id: req.params.id },
-      include: { class: { select: { teacherId: true } } },
+    const { lesson } = await assertLessonAccess({
+      lessonId: req.params.id,
+      userId: req.auth?.userId || req.user?.id,
+      allowTeacherOwner: true,
+      allowEnrolledStudent: true,
     });
-
-    if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
-
-    const userId = req.auth?.userId || req.user?.id;
-    if (lesson.class.teacherId !== userId) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
 
     res.json({
       id: lesson.id,
@@ -143,6 +230,7 @@ router.get('/:id', requireAuth, adaptContent, async (req, res) => {
       createdAt: lesson.createdAt,
     });
   } catch (err) {
+    if (isHttpError(err)) return res.status(err.status).json({ error: err.message });
     res.status(500).json({ error: err.message });
   }
 });

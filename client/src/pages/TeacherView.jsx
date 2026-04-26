@@ -18,6 +18,11 @@ const accessibilityCoverage = [
   { id: 'ac3', group: 'Foundational level students', coverage: '5/6 lessons adapted this week'    },
 ]
 
+function summarizeStandard(standard) {
+  if (!standard) return 'Standard ready for live differentiation'
+  return standard.length > 110 ? `${standard.slice(0, 107)}...` : standard
+}
+
 function DashboardTab({ onNavigate }) {
   const [data,            setData]            = useState(null)
   const [recommendation,  setRecommendation]  = useState(null)
@@ -48,16 +53,18 @@ function DashboardTab({ onNavigate }) {
               const lr = await getLessonsByClass(cls.id)
               return (lr?.lessons || []).map(l => ({
                 id: l.id, title: l.title,
-                source: `Standard: ${l.standard}`,
-                status: `${cls.name} · PostgreSQL`,
+                source: summarizeStandard(l.standard),
+                status: `${cls.name} · ${l.publishedAt ? 'Published' : 'Draft'}`,
                 createdAt: l.createdAt,
+                publishedAt: l.publishedAt,
               }))
             })
           )
           setCurriculumQueue(
             lessonResults.flat()
+              .filter((lesson) => lesson.publishedAt)
               .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-              .slice(0, 5)
+              .slice(0, 4)
           )
         } catch { setCurriculumQueue([]) }
       } finally { setLoading(false) }
@@ -91,7 +98,7 @@ function DashboardTab({ onNavigate }) {
       </div>
 
       <p style={{ marginBottom: '1.25rem', color: 'var(--muted)' }}>
-        Welcome back, {data?.studentName || 'teacher'}. Plan, differentiate, and monitor student growth.
+        Welcome back, Teacher. Your live demo lane is ready: generate a lesson, publish it, then switch to the student view to show adaptation in real time.
       </p>
 
       <section className="dashboard-grid">
@@ -102,7 +109,7 @@ function DashboardTab({ onNavigate }) {
           <TaskChecklist tasks={taskState} onToggle={toggleTask} />
         </DashboardCard>
 
-        <DashboardCard title="Curriculum Upload Queue">
+        <DashboardCard title="Recent Published Lessons">
           <ul className="item-list compact">
             {curriculumQueue.length > 0 ? (
               curriculumQueue.map(item => (
@@ -114,9 +121,9 @@ function DashboardTab({ onNavigate }) {
               ))
             ) : (
               <li>
-                <strong>No saved lessons yet</strong>
-                <span>Generate from LessonForge to add to this queue</span>
-                <small>Waiting for first PostgreSQL record</small>
+                <strong>No published lessons yet</strong>
+                <span>Generate in LessonForge, then publish one lesson to populate this panel.</span>
+                <small>Ready for your first demo-ready lesson</small>
               </li>
             )}
           </ul>
@@ -146,7 +153,7 @@ function DashboardTab({ onNavigate }) {
 
       {recommendation && (
         <section className="bf-card recommendation-strip" style={{ marginTop: '12px' }}>
-          <h3>Recommended Next Action</h3>
+          <h3>Recommended Demo Move</h3>
           <p>{recommendation.recommendation}</p>
           <span style={{ color: 'var(--muted)', fontSize: '13px' }}>
             Suggested support mode: {recommendation.mode}
