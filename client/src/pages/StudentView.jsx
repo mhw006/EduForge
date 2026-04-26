@@ -229,8 +229,15 @@ function LessonRenderer({ lesson, profile }) {
       ar: 'ar-SA', ko: 'ko-KR', vi: 'vi-VN', hi: 'hi-IN',
       ru: 'ru-RU', de: 'de-DE', ja: 'ja-JP', it: 'it-IT',
     }
-    const targetLang = TTS_LANG_MAP[profile.language] || 'en-US'
-    const text = `${decodeHtml(content.overview)}\n\n${decodeHtml(content.mainContent)}`
+
+    // If translation failed the content is still English — use English voice.
+    const effectiveLang = content._translationFailed ? 'en' : profile.language
+    const targetLang = TTS_LANG_MAP[effectiveLang] || 'en-US'
+
+    // Decode HTML entities/tags, then cap length — very long utterances
+    // (advanced lessons) are silently dropped by some TTS engines.
+    const raw = `${decodeHtml(content.overview)}\n\n${decodeHtml(content.mainContent)}`
+    const text = raw.length > 4000 ? raw.slice(0, 4000) + '…' : raw
 
     const utterance = new SpeechSynthesisUtterance(text)
 
@@ -238,20 +245,16 @@ function LessonRenderer({ lesson, profile }) {
     const voices = _voiceCache.voices.length > 0 ? _voiceCache.voices : (window.speechSynthesis?.getVoices() || [])
     const match = voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix))
     if (match) {
-      // Voice found for target language — use it with the correct locale.
       utterance.voice = match
       utterance.lang = match.lang
     }
-    // If no matching voice is installed, leave utterance.lang unset so the
-    // browser uses its default voice instead of silently dropping the speech.
+    // If no matching voice, leave lang unset — browser uses default voice
+    // rather than silently dropping speech for an unsupported lang code.
 
     utterance.onend = () => setSpeaking(false)
     utterance.onerror = () => setSpeaking(false)
     utteranceRef.current = utterance
 
-    // Cancel any ongoing speech, then wait one tick for Chrome's engine to
-    // settle before queuing the new utterance — skipping this delay causes
-    // speak() to be silently dropped after a cancel().
     window.speechSynthesis.cancel()
     setSpeaking(true)
     setTimeout(() => window.speechSynthesis.speak(utterance), 50)
