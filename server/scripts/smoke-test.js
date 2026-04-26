@@ -66,6 +66,9 @@ async function testModuleLoads() {
     'src/routes/quiz',
     'src/routes/analytics',
     'src/routes/export',
+    'src/routes/edits',
+    'src/routes/standards',
+    'src/services/standards-retrieval',
   ];
 
   for (const m of modules) {

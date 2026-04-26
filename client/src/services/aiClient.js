@@ -69,6 +69,11 @@ export async function getLessonsByClass(classId, demoUser = 'teacher') {
   return handleResponse(response)
 }
 
+export async function getClassAnalytics(classId, demoUser = 'teacher') {
+  const response = await apiFetch(`/analytics/${classId}`, { demoUser })
+  return handleResponse(response)
+}
+
 export async function getLesson(lessonId, demoUser = 'student') {
   const response = await apiFetch(`/lessons/${lessonId}`, { demoUser })
   return handleResponse(response)
@@ -90,6 +95,30 @@ export async function updateProfile(updates, demoUser = 'student') {
 
 export async function getTranslationLanguages(demoUser = 'student') {
   const response = await apiFetch('/translate/languages', { demoUser })
+  return handleResponse(response)
+}
+
+export async function getMyDiagnosticSummary(demoUser = 'student') {
+  const response = await apiFetch('/diagnostics/me/summary', { demoUser })
+  return handleResponse(response)
+}
+
+export async function getDiagnosticCatalog(demoUser = 'student') {
+  const response = await apiFetch('/diagnostics/catalog', { demoUser })
+  return handleResponse(response)
+}
+
+export async function getDiagnosticQuestions(domain, demoUser = 'student') {
+  const response = await apiFetch(`/diagnostics/domains/${domain}/questions`, { demoUser })
+  return handleResponse(response)
+}
+
+export async function submitDiagnostic({ domain, classId, responses }, demoUser = 'student') {
+  const response = await apiFetch(`/diagnostics/domains/${domain}/submit`, {
+    method: 'POST',
+    demoUser,
+    body: { classId, responses },
+  })
   return handleResponse(response)
 }
 
@@ -160,6 +189,22 @@ export async function getEditSummary({ classId, lessonId } = {}) {
   if (classId) params.set('classId', classId)
   if (lessonId) params.set('lessonId', lessonId)
   const response = await apiFetch(`/edits/summary?${params}`, { demoUser: 'teacher' })
+  return handleResponse(response)
+}
+
+// ─── Diagnostic Adaptation Loop ──────────────────────────────────────────────
+
+export async function getLessonDiagnostic(lessonId) {
+  const response = await apiFetch(`/diagnostics/${lessonId}`, { demoUser: 'student' })
+  return handleResponse(response)
+}
+
+export async function submitLessonDiagnostic(lessonId, answers) {
+  const response = await apiFetch(`/diagnostics/${lessonId}/submit`, {
+    method: 'POST',
+    body: { answers },
+    demoUser: 'student',
+  })
   return handleResponse(response)
 }
 

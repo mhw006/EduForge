@@ -123,7 +123,7 @@ export default function StudyMode() {
             required
           />
           <button className="bf-btn" type="submit" disabled={loading}>
-            {loading ? 'Claude is adapting…' : 'Adapt Content'}
+            {loading ? 'Adapting content…' : 'Adapt Content'}
           </button>
         </form>
         {error && <p style={{ color: '#f87171', marginTop: '0.75rem' }}>{error}</p>}
