@@ -38,6 +38,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
+app.use('/api/chat', require('./routes/chat'));
 app.use('/api/lessons', require('./routes/lessons'));
 app.use('/api/lessonforge', generateLimiter, require('./routes/lessonforge'));
 app.use('/api/equity', generateLimiter, require('./routes/equity'));
