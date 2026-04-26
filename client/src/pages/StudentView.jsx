@@ -261,6 +261,7 @@ function DiagnosticSupportBanner({ profile, lesson, diagnostics }) {
 
 function DiagnosticLauncher({ classes, diagnostics, loading, profile, onComplete }) {
   const [catalog, setCatalog] = useState([])
+  const [activeDomain, setActiveDomain] = useState('READING')
   const [questionSet, setQuestionSet] = useState(null)
   const [responses, setResponses] = useState({})
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || '')
@@ -285,18 +286,19 @@ function DiagnosticLauncher({ classes, diagnostics, loading, profile, onComplete
     return () => { cancelled = true }
   }, [])
 
-  async function startReadingDiagnostic() {
+  async function startDiagnostic(domain) {
     setError(null)
     setResponses({})
     try {
-      const result = await getDiagnosticQuestions('READING', 'student')
+      setActiveDomain(domain)
+      const result = await getDiagnosticQuestions(domain, 'student')
       setQuestionSet(result)
     } catch (err) {
-      setError(err.message || 'Could not load the reading diagnostic.')
+      setError(err.message || 'Could not load the diagnostic.')
     }
   }
 
-  async function submitReadingDiagnostic() {
+  async function submitDiagnosticAttempt() {
     if (!questionSet || !selectedClassId) return
     const unanswered = questionSet.questions.filter((question) => !responses[question.id])
     if (unanswered.length > 0) {
@@ -308,7 +310,7 @@ function DiagnosticLauncher({ classes, diagnostics, loading, profile, onComplete
     setError(null)
     try {
       await submitDiagnostic({
-        domain: 'READING',
+        domain: activeDomain,
         classId: selectedClassId,
         responses: questionSet.questions.map((question) => ({
           questionId: question.id,
@@ -327,30 +329,47 @@ function DiagnosticLauncher({ classes, diagnostics, loading, profile, onComplete
   }
 
   const readingCompleted = Boolean(diagnostics?.latestReading)
+  const mathCompleted = Boolean(diagnostics?.latestMath)
   const hasClassContext = classes.length > 0
 
   return (
     <section className="bf-card" style={{ marginBottom: '12px' }}>
-      <h3 style={{ marginTop: 0 }}>Reading diagnostic</h3>
+      <h3 style={{ marginTop: 0 }}>Diagnostics</h3>
       <p className="sv-muted" style={{ marginBottom: '0.75rem' }}>
-        Run a quick placement check to update the learner profile that powers lesson adaptation.
+        Run quick placement checks to update the learner profile that powers lesson adaptation.
       </p>
 
       {!questionSet ? (
         <>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-            <span className="sv-muted">
-              {readingCompleted
-                ? `Latest reading diagnostic: ${formatReadingLevel(diagnostics.latestReading.inferredLevel)}`
-                : profile?.diagnosticReadingLevel
-                  ? `Current profile is set to ${formatReadingLevel(profile.diagnosticReadingLevel)}. Run a fresh diagnostic to validate or update it.`
-                  : 'No reading diagnostic completed yet'}
-            </span>
-            {catalog.find((item) => item.domain === 'READING') && (
-              <button className="bf-btn" type="button" onClick={startReadingDiagnostic} disabled={loading || !hasClassContext}>
-                {readingCompleted ? 'Retake reading diagnostic' : 'Start reading diagnostic'}
-              </button>
-            )}
+          <div style={{ display: 'grid', gap: '12px', marginBottom: '0.75rem' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span className="sv-muted">
+                {readingCompleted
+                  ? `Latest reading diagnostic: ${formatReadingLevel(diagnostics.latestReading.inferredLevel)}`
+                  : profile?.diagnosticReadingLevel
+                    ? `Current reading profile is set to ${formatReadingLevel(profile.diagnosticReadingLevel)}. Run a fresh diagnostic to validate or update it.`
+                    : 'No reading diagnostic completed yet'}
+              </span>
+              {catalog.find((item) => item.domain === 'READING') && (
+                <button className="bf-btn" type="button" onClick={() => startDiagnostic('READING')} disabled={loading || !hasClassContext}>
+                  {readingCompleted ? 'Retake reading diagnostic' : 'Start reading diagnostic'}
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span className="sv-muted">
+                {mathCompleted
+                  ? `Latest math diagnostic: ${formatMathLevel(diagnostics.latestMath.inferredLevel)}`
+                  : profile?.diagnosticMathLevel
+                    ? `Current math profile is set to ${formatMathLevel(profile.diagnosticMathLevel)}. Run a fresh diagnostic to validate or update it.`
+                    : 'No math diagnostic completed yet'}
+              </span>
+              {catalog.find((item) => item.domain === 'MATH') && (
+                <button className="bf-btn ghost" type="button" onClick={() => startDiagnostic('MATH')} disabled={loading || !hasClassContext}>
+                  {mathCompleted ? 'Retake math diagnostic' : 'Start math diagnostic'}
+                </button>
+              )}
+            </div>
           </div>
 
           {classes.length > 0 ? (
@@ -391,7 +410,7 @@ function DiagnosticLauncher({ classes, diagnostics, loading, profile, onComplete
             </div>
           ))}
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button className="bf-btn" type="button" onClick={submitReadingDiagnostic} disabled={submitting}>
+            <button className="bf-btn" type="button" onClick={submitDiagnosticAttempt} disabled={submitting}>
               {submitting ? 'Submitting…' : 'Submit diagnostic'}
             </button>
             <button className="bf-btn ghost" type="button" onClick={() => { setQuestionSet(null); setResponses({}); setError(null) }}>

@@ -272,12 +272,143 @@ async function main() {
   });
   console.log('Sample lesson:', sampleLesson.title);
 
+  const mathLesson = await prisma.lesson.upsert({
+    where: { id: 'demo_lesson_math_001' },
+    update: {
+      classId: demoClass.id,
+      standard: 'Compare fractions with unlike denominators using visual models and benchmark fractions.',
+      title: 'Fractions on a Number Line',
+      status: 'READY',
+      publishedAt: new Date(),
+      publishedById: teacher.id,
+      foundational: {
+        levelLabel: 'Foundational',
+        lexileRange: '350L-500L',
+        overview: 'Learn how to compare fractions by seeing where they belong on a number line.',
+        keyVocabulary: [
+          { term: 'fraction', definition: 'A number that shows equal parts of a whole.' },
+          { term: 'benchmark fraction', definition: 'A familiar fraction like 1/2 that helps you compare.' },
+        ],
+        mainContent:
+          'Fractions can be compared by placing them on a number line. If one fraction lands farther to the right, it is greater. Benchmark fractions like 1/2 help you decide if a fraction is smaller or larger.',
+        activities: [
+          { title: 'Number Line Match', instructions: 'Place 1/4, 1/2, and 3/4 on a blank number line and explain which is greatest.', estimatedMinutes: 10 },
+        ],
+        quiz: [
+          { question: 'Which fraction is greater: 1/4 or 3/4?', options: ['A) 1/4', 'B) 3/4', 'C) They are equal', 'D) Not enough information'], correctAnswer: 'B', explanation: '3/4 is farther to the right on the number line.' },
+          { question: 'What is a benchmark fraction?', options: ['A) A random fraction', 'B) A familiar fraction used for comparison', 'C) The biggest fraction', 'D) A fraction with 10 as the denominator'], correctAnswer: 'B', explanation: 'Benchmark fractions like 1/2 help compare other fractions.' },
+        ],
+      },
+      gradeLevel: {
+        levelLabel: 'Grade Level',
+        lexileRange: '650L-850L',
+        overview: 'Students compare fractions with unlike denominators by reasoning with size, benchmarks, and visual models.',
+        keyVocabulary: [
+          { term: 'numerator', definition: 'The top number in a fraction that tells how many parts are considered.' },
+          { term: 'denominator', definition: 'The bottom number in a fraction that tells how many equal parts make the whole.' },
+        ],
+        mainContent:
+          'Fractions with unlike denominators can still be compared without always finding common denominators first. Visual models and number lines reveal relative size, and benchmark fractions like 0, 1/2, and 1 help students justify their reasoning.',
+        activities: [
+          { title: 'Benchmark Sort', instructions: 'Sort 2/5, 5/8, 7/8, and 3/10 by whether they are less than, equal to, or greater than 1/2.', estimatedMinutes: 15 },
+        ],
+        quiz: [
+          { question: 'Why is 5/8 greater than 1/2?', options: ['A) 8 is bigger than 2', 'B) 5/8 is to the right of 1/2 on the number line', 'C) Because it has more digits', 'D) It is not greater'], correctAnswer: 'B', explanation: '5/8 is greater than 4/8, which equals 1/2.' },
+          { question: 'Which helps compare fractions quickly?', options: ['A) Benchmark fractions', 'B) Guessing', 'C) Ignoring denominators', 'D) Only using decimals'], correctAnswer: 'A', explanation: 'Benchmarks give a reference point for comparison.' },
+        ],
+      },
+      advanced: {
+        levelLabel: 'Advanced',
+        lexileRange: '950L-1150L',
+        overview: 'Students justify fraction comparisons using benchmark reasoning, equivalence, and precision in mathematical argument.',
+        keyVocabulary: [
+          { term: 'equivalent fractions', definition: 'Different fractions that represent the same value.' },
+          { term: 'justify', definition: 'To explain reasoning with evidence and precise math language.' },
+        ],
+        mainContent:
+          'Advanced fraction comparison requires more than identifying the larger number. Students must justify whether fractions are greater than or less than benchmarks, determine equivalence when useful, and communicate why a comparison remains true across different representations.',
+        activities: [
+          { title: 'Defend the Comparison', instructions: 'Write a short argument explaining whether 7/12 or 5/8 is greater, using a benchmark or equivalent fractions.', estimatedMinutes: 20 },
+        ],
+        quiz: [
+          { question: 'Which is the strongest justification?', options: ['A) 7 is greater than 5', 'B) 5/8 = 0.625 and 7/12 is about 0.583', 'C) I have seen 5/8 before', 'D) 12 is larger than 8'], correctAnswer: 'B', explanation: 'The comparison is justified with equivalent numeric reasoning.' },
+          { question: 'Why use a benchmark fraction?', options: ['A) To avoid thinking', 'B) To create a known reference point', 'C) To make denominators disappear', 'D) To always get an exact answer'], correctAnswer: 'B', explanation: 'Benchmarks make reasoning easier and more precise.' },
+        ],
+      },
+    },
+    create: {
+      id: 'demo_lesson_math_001',
+      classId: demoClass.id,
+      standard: 'Compare fractions with unlike denominators using visual models and benchmark fractions.',
+      title: 'Fractions on a Number Line',
+      status: 'READY',
+      publishedAt: new Date(),
+      publishedById: teacher.id,
+      foundational: {
+        levelLabel: 'Foundational',
+        lexileRange: '350L-500L',
+        overview: 'Learn how to compare fractions by seeing where they belong on a number line.',
+        keyVocabulary: [
+          { term: 'fraction', definition: 'A number that shows equal parts of a whole.' },
+          { term: 'benchmark fraction', definition: 'A familiar fraction like 1/2 that helps you compare.' },
+        ],
+        mainContent:
+          'Fractions can be compared by placing them on a number line. If one fraction lands farther to the right, it is greater. Benchmark fractions like 1/2 help you decide if a fraction is smaller or larger.',
+        activities: [
+          { title: 'Number Line Match', instructions: 'Place 1/4, 1/2, and 3/4 on a blank number line and explain which is greatest.', estimatedMinutes: 10 },
+        ],
+        quiz: [
+          { question: 'Which fraction is greater: 1/4 or 3/4?', options: ['A) 1/4', 'B) 3/4', 'C) They are equal', 'D) Not enough information'], correctAnswer: 'B', explanation: '3/4 is farther to the right on the number line.' },
+          { question: 'What is a benchmark fraction?', options: ['A) A random fraction', 'B) A familiar fraction used for comparison', 'C) The biggest fraction', 'D) A fraction with 10 as the denominator'], correctAnswer: 'B', explanation: 'Benchmark fractions like 1/2 help compare other fractions.' },
+        ],
+      },
+      gradeLevel: {
+        levelLabel: 'Grade Level',
+        lexileRange: '650L-850L',
+        overview: 'Students compare fractions with unlike denominators by reasoning with size, benchmarks, and visual models.',
+        keyVocabulary: [
+          { term: 'numerator', definition: 'The top number in a fraction that tells how many parts are considered.' },
+          { term: 'denominator', definition: 'The bottom number in a fraction that tells how many equal parts make the whole.' },
+        ],
+        mainContent:
+          'Fractions with unlike denominators can still be compared without always finding common denominators first. Visual models and number lines reveal relative size, and benchmark fractions like 0, 1/2, and 1 help students justify their reasoning.',
+        activities: [
+          { title: 'Benchmark Sort', instructions: 'Sort 2/5, 5/8, 7/8, and 3/10 by whether they are less than, equal to, or greater than 1/2.', estimatedMinutes: 15 },
+        ],
+        quiz: [
+          { question: 'Why is 5/8 greater than 1/2?', options: ['A) 8 is bigger than 2', 'B) 5/8 is to the right of 1/2 on the number line', 'C) Because it has more digits', 'D) It is not greater'], correctAnswer: 'B', explanation: '5/8 is greater than 4/8, which equals 1/2.' },
+          { question: 'Which helps compare fractions quickly?', options: ['A) Benchmark fractions', 'B) Guessing', 'C) Ignoring denominators', 'D) Only using decimals'], correctAnswer: 'A', explanation: 'Benchmarks give a reference point for comparison.' },
+        ],
+      },
+      advanced: {
+        levelLabel: 'Advanced',
+        lexileRange: '950L-1150L',
+        overview: 'Students justify fraction comparisons using benchmark reasoning, equivalence, and precision in mathematical argument.',
+        keyVocabulary: [
+          { term: 'equivalent fractions', definition: 'Different fractions that represent the same value.' },
+          { term: 'justify', definition: 'To explain reasoning with evidence and precise math language.' },
+        ],
+        mainContent:
+          'Advanced fraction comparison requires more than identifying the larger number. Students must justify whether fractions are greater than or less than benchmarks, determine equivalence when useful, and communicate why a comparison remains true across different representations.',
+        activities: [
+          { title: 'Defend the Comparison', instructions: 'Write a short argument explaining whether 7/12 or 5/8 is greater, using a benchmark or equivalent fractions.', estimatedMinutes: 20 },
+        ],
+        quiz: [
+          { question: 'Which is the strongest justification?', options: ['A) 7 is greater than 5', 'B) 5/8 = 0.625 and 7/12 is about 0.583', 'C) I have seen 5/8 before', 'D) 12 is larger than 8'], correctAnswer: 'B', explanation: 'The comparison is justified with equivalent numeric reasoning.' },
+          { question: 'Why use a benchmark fraction?', options: ['A) To avoid thinking', 'B) To create a known reference point', 'C) To make denominators disappear', 'D) To always get an exact answer'], correctAnswer: 'B', explanation: 'Benchmarks make reasoning easier and more precise.' },
+        ],
+      },
+    },
+  });
+  console.log('Math lesson:', mathLesson.title);
+
   console.log('\n--- Seed complete ---');
   console.log('Teacher ID:  demo_teacher_001');
   console.log('Student ID:  demo_student_001');
   console.log('Class ID:   ', demoClass.id);
   console.log('Join Code:   DEMO2024');
   console.log('Lesson ID:   demo_lesson_001');
+  console.log('Math ID:     demo_lesson_math_001');
   console.log('\nYou can now test all routes without Claude API credits.');
 }
 
