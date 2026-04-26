@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import BonfireWidget from '../components/BonfireWidget'
 import DashboardCard from '../components/DashboardCard'
 import TaskChecklist from '../components/TaskChecklist'
-import { adaptContent, getClassAnalytics, getClasses, getDashboardData, getLessonsByClass, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, publishLesson, logLessonEdit } from '../services/aiClient'
+import { adaptContent, getClassAnalytics, getClasses, getDashboardData, getLessonsByClass, getLesson, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, publishLesson, logLessonEdit } from '../services/aiClient'
 
 // ─── Tab IDs ──────────────────────────────────────────────────────────────────
 const TABS = [
@@ -383,6 +383,7 @@ function LessonForgeTab() {
   const [lesson,      setLesson]      = useState(null)
   const [savedLessonId, setSavedLessonId] = useState(null)
   const [publishedLesson, setPublishedLesson] = useState(false)
+  const [savedLessons, setSavedLessons] = useState([])
   const [accepted,    setAccepted]    = useState({}) // { 'foundational::OVERVIEW': true }
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState(null)
@@ -391,18 +392,39 @@ function LessonForgeTab() {
 
   useEffect(() => {
     let cancelled = false
-    async function loadClasses() {
+    async function loadClassesAndLessons() {
       try {
         const result = await getClasses()
         if (cancelled) return
         const availableClasses = (result.classes || []).filter((cls) => cls.name !== 'LessonForge Drafts')
         setClasses(availableClasses)
         setSelectedClassId(availableClasses[0]?.id || '')
+
+        const lessonResults = await Promise.all(
+          availableClasses.map(async (cls) => {
+            const lessonResult = await getLessonsByClass(cls.id)
+            return (lessonResult.lessons || []).map((savedLesson) => ({
+              ...savedLesson,
+              classId: cls.id,
+              className: cls.name,
+            }))
+          })
+        )
+        if (!cancelled) {
+          setSavedLessons(
+            lessonResults
+              .flat()
+              .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          )
+        }
       } catch {
-        if (!cancelled) setClasses([])
+        if (!cancelled) {
+          setClasses([])
+          setSavedLessons([])
+        }
       }
     }
-    loadClasses()
+    loadClassesAndLessons()
     return () => { cancelled = true }
   }, [])
 
@@ -443,6 +465,14 @@ function LessonForgeTab() {
             ? `Saved as a draft in ${classes.find((cls) => cls.id === selectedClassId)?.name || 'your class'} (lesson ID: ${saveResult.lesson.id})`
             : `Saved as a draft in LessonForge Drafts (lesson ID: ${saveResult.lesson.id})`,
         })
+        setSavedLessons((prev) => [
+          {
+            ...saveResult.lesson,
+            classId: selectedClassId || saveResult.lesson.classId,
+            className: classes.find((cls) => cls.id === (selectedClassId || saveResult.lesson.classId))?.name || 'LessonForge Drafts',
+          },
+          ...prev.filter((item) => item.id !== saveResult.lesson.id),
+        ])
       } catch (saveErr) {
         setSaveNotice({ kind: 'error', message: `Forged successfully, but save failed: ${saveErr.message || 'Unknown error'}` })
       }
@@ -460,8 +490,29 @@ function LessonForgeTab() {
         kind: 'success',
         message: `Published and ready for students in ${classes.find((cls) => cls.id === selectedClassId)?.name || 'this class'}.`,
       })
+      setSavedLessons((prev) => prev.map((item) => item.id === savedLessonId ? { ...item, publishedAt: new Date().toISOString() } : item))
     } catch (err) {
       setSaveNotice({ kind: 'error', message: `Draft saved, but publish failed: ${err.message || 'Unknown error'}` })
+    }
+  }
+
+  async function openSavedLesson(lessonSummary) {
+    try {
+      setError(null)
+      const lessonResult = await getLesson(lessonSummary.id, 'teacher')
+      setLesson(lessonResult)
+      setSavedLessonId(lessonSummary.id)
+      setPublishedLesson(Boolean(lessonSummary.publishedAt))
+      setActiveTab('foundational')
+      setSaveNotice({
+        kind: 'success',
+        message: lessonSummary.publishedAt
+          ? `Reopened published lesson from ${lessonSummary.className}.`
+          : `Reopened draft from ${lessonSummary.className}. Publish it when you're ready.`,
+      })
+      if (lessonSummary.classId) setSelectedClassId(lessonSummary.classId)
+    } catch (err) {
+      setSaveNotice({ kind: 'error', message: `Could not reopen saved lesson: ${err.message || 'Unknown error'}` })
     }
   }
 
@@ -538,12 +589,64 @@ function LessonForgeTab() {
           </button>
         </form>
 
+        {loading && (
+          <div className="bf-card" style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ fontSize: '1.8rem' }}>⚒️</div>
+            <div>
+              <strong>Forging at the anvil…</strong>
+              <div className="sv-muted">EduForge is shaping differentiated tiers, vocabulary, activities, and checks.</div>
+            </div>
+          </div>
+        )}
+
         {error && <p style={{ color: '#f87171', marginTop: '1rem' }}>{error}</p>}
         {saveNotice && (
           <p style={{ color: saveNotice.kind === 'success' ? '#4ade80' : '#facc15', marginTop: '0.75rem' }}>
             {saveNotice.message}
           </p>
         )}
+      </section>
+
+      <section className="bf-card" style={{ marginTop: '12px' }}>
+        <h3 style={{ marginTop: 0 }}>Saved lessons</h3>
+        <p className="sv-muted" style={{ marginBottom: '0.75rem' }}>
+          Reopen a saved draft to publish it later or review what students can already access.
+        </p>
+        <ul className="item-list compact">
+          {savedLessons.length > 0 ? (
+            savedLessons.slice(0, 8).map((savedLesson) => (
+              <li key={savedLesson.id}>
+                <div>
+                  <strong>{savedLesson.title}</strong>
+                  <small>{savedLesson.className} · {savedLesson.publishedAt ? 'Published' : 'Draft'}</small>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button type="button" className="bf-btn ghost" onClick={() => openSavedLesson(savedLesson)}>
+                    Open
+                  </button>
+                  {!savedLesson.publishedAt && (
+                    <button
+                      type="button"
+                      className="bf-btn"
+                      onClick={async () => {
+                        await publishLesson(savedLesson.id)
+                        setSaveNotice({ kind: 'success', message: `${savedLesson.title} is now published for students.` })
+                        setSavedLessons((prev) => prev.map((item) => item.id === savedLesson.id ? { ...item, publishedAt: new Date().toISOString() } : item))
+                      }}
+                    >
+                      Publish
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))
+          ) : (
+            <li>
+              <strong>No saved lessons yet</strong>
+              <small>Forge a lesson above and it will stay here as a draft until you publish it.</small>
+            </li>
+          )}
+        </ul>
       </section>
 
       {lesson && (
