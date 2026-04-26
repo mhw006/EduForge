@@ -6,9 +6,9 @@ import { adaptContent, getClasses, getDashboardData, getLessonsByClass, recommen
 
 // ─── Tab IDs ──────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'dashboard',   icon: '📊', label: 'Dashboard'    },
-  { id: 'lessonforge', icon: '🧠', label: 'LessonForge'  },
-  { id: 'adapt',       icon: '🎯', label: 'Adapt Studio' },
+  { id: 'dashboard', label: 'Dashboard'    },
+  { id: 'lessonforge', label: 'LessonForge'  },
+  { id: 'adapt', label: 'Adapt Studio' },
 ]
 
 // ─── Dashboard tab ────────────────────────────────────────────────────────────
