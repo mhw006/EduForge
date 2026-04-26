@@ -1,4 +1,4 @@
-# EduForge
+# EduForge - LA Hacks 2026 (Light the Way Presented by Aramco)
 
 EduForge is an AI-assisted lesson generation and student adaptation platform for teachers and learners. Teachers can generate differentiated lessons from curriculum standards, publish them to classes, review classroom signals, and track how AI output is accepted or revised. Students receive adapted lesson experiences with reading-level support, translation, accessibility controls, diagnostics, quizzes, study modes, and progress-oriented learning views.
 
