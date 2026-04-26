@@ -37,11 +37,11 @@ export default function Landing() {
         </p>
 
         <div className="hero-cta-row">
-          <Link className="bf-btn" to="/dashboard">
+          <Link className="bf-btn" to="/teacher">
             Open Teacher Dashboard
           </Link>
-          <Link className="bf-btn ghost" to="/lesson-planner">
-            Upload Curriculum + Generate
+          <Link className="bf-btn ghost" to="/student">
+            Open Student View
           </Link>
         </div>
 

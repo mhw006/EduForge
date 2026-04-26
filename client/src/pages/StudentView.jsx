@@ -809,14 +809,14 @@ function LessonRenderer({ lesson, profile }) {
       <div className="student-status-row">
         <span>{lesson.title}</span>
         {lesson.appliedProfile?.readingLevel && (
-          <span>{formatReadingLevel(lesson.appliedProfile.readingLevel)}</span>
+          <span>Adapted · {formatReadingLevel(lesson.appliedProfile.readingLevel)}</span>
         )}
         {lesson.appliedProfile?.diagnosticReadingLevel && lesson.appliedProfile.readingLevel === lesson.appliedProfile.diagnosticReadingLevel && (
-          <span>Diagnostic-aligned</span>
+          <span>Diagnostic-updated reading level</span>
         )}
         <span>{translationStatusLabel}</span>
         {content._textOnly && <span>Text-only mode</span>}
-        {content._translationFailed && <span>Showing original lesson</span>}
+        {content._translationFailed && <span>Showing original (translation unavailable)</span>}
       </div>
 
       {profile.ttsEnabled && (
@@ -900,6 +900,8 @@ function LessonsTab() {
   const [error, setError] = useState(null)
   const [suggestedBandwidth, setSuggestedBandwidth] = useState(null)
   const [diagnosticResult, setDiagnosticResult] = useState(null)
+  // Incremented after a profile save reaches the DB, so lesson reload reads the committed state
+  const [lessonReloadTrigger, setLessonReloadTrigger] = useState(0)
 
   useBandwidthSuggestion(profile || {}, setSuggestedBandwidth)
 
@@ -972,12 +974,16 @@ function LessonsTab() {
     }
 
     loadLesson()
-  }, [selectedLessonId, profile])
+    // lessonReloadTrigger only increments after the profile PUT has committed to DB,
+    // so the server reads the correct state. profile is intentionally omitted here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLessonId, lessonReloadTrigger])
 
   async function changeProfile(updates) {
     if (!profile) return
-    const nextProfile = { ...profile, ...updates }
-    setProfile(nextProfile)
+    // Optimistic UI update — controls respond instantly (checkboxes, selects).
+    // We do NOT use this to trigger a lesson reload; that waits for the DB commit.
+    setProfile((prev) => ({ ...prev, ...updates }))
     setSaving(true)
     setSuggestedBandwidth(null)
 
@@ -1000,9 +1006,12 @@ function LessonsTab() {
     try {
       const result = await updateProfile(updates, 'student')
       setProfile(result.profile)
+      // Only trigger lesson reload after profile is committed — avoids a flash
+      // where the server adapts the lesson with the stale DB state.
+      setLessonReloadTrigger((t) => t + 1)
     } catch (err) {
       setError(err.message || 'Could not save profile changes.')
-      setProfile(profile)
+      setProfile(profile) // revert optimistic update
     } finally {
       setSaving(false)
     }
@@ -1010,12 +1019,14 @@ function LessonsTab() {
 
   function handleDiagnosticComplete(result) {
     setDiagnosticResult(result)
-    // Update local profile so the lesson reload useEffect fires with the new level
     setProfile((prev) => prev ? {
       ...prev,
       readingLevel: result.newReadingLevel,
       diagnosticReadingLevel: result.newReadingLevel,
     } : prev)
+    // The diagnostic route already updates the DB before returning, so the
+    // lesson reload will read the committed new level.
+    setLessonReloadTrigger((t) => t + 1)
   }
 
   if (loading) return <p className="sv-muted">Loading lessons...</p>

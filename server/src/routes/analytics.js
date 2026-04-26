@@ -5,7 +5,7 @@ const { requireAuth, requireTeacher } = require('../middleware/auth');
 
 const router = express.Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = process.env.LESSONFORGE_MODEL || 'claude-sonnet-4-5-20250929';
+const MODEL = process.env.LESSONFORGE_MODEL || 'claude-sonnet-4-6';
 
 // ─── Phase 3: Student engagement event capture ───────────────────────────────
 // Lightweight fire-and-forget endpoint students hit on toggle interactions.
