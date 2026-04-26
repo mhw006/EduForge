@@ -37,10 +37,22 @@ async function main() {
       profile: {
         create: {
           readingLevel: 'FOUNDATIONAL',
+          diagnosticReadingLevel: 'FOUNDATIONAL',
+          gradeLevelLabel: '6',
+          readingLexile: 520,
+          mathLevel: 'BELOW_GRADE',
+          diagnosticMathLevel: 'BELOW_GRADE',
           language: 'es',
           bandwidthMode: 'TEXT_ONLY',
           fontSize: 'LARGE',
           dyslexiaFont: true,
+          screenReaderMode: false,
+          reducedMotion: false,
+          preferredContentFormat: 'TEXT_FOCUSED',
+          supportFlags: {
+            translatedContent: true,
+            explicitVocabularySupport: true,
+          },
           ttsEnabled: true,
           ttsProvider: 'WEB_SPEECH',
         },
@@ -72,6 +84,8 @@ async function main() {
       standard: 'CCSS.ELA-LITERACY.RI.6.1',
       title: 'Citing Textual Evidence',
       status: 'READY',
+      publishedAt: new Date(),
+      publishedById: teacher.id,
       foundational: {
         levelLabel: 'Foundational',
         lexileRange: '400L-600L',

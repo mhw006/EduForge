@@ -1,6 +1,8 @@
 const express = require('express');
 const { prisma } = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { assertLessonAccess, loadLessonAccessContext } = require('../lib/lesson-access');
+const { isHttpError } = require('../lib/http-error');
 const router = express.Router();
 
 // Reading level → JSON field
@@ -17,16 +19,24 @@ router.post('/:lessonId/submit', requireAuth, async (req, res) => {
     const { answers, level } = req.body;
     const userId = req.auth?.userId || req.user?.id;
 
+    if (req.user?.role !== 'STUDENT') {
+      return res.status(403).json({ error: 'Student role required' });
+    }
+
     if (!answers || !Array.isArray(answers)) {
       return res.status(400).json({ error: 'answers must be an array' });
     }
 
     const validLevel = level && LEVEL_FIELD[level] ? level : 'GRADE_LEVEL';
 
-    const lesson = await prisma.lesson.findUnique({ where: { id: lessonId } });
-    if (!lesson || lesson.status !== 'READY') {
-      return res.status(404).json({ error: 'Lesson not found or not ready' });
-    }
+    const { lesson } = await assertLessonAccess({
+      lessonId,
+      userId,
+      allowTeacherOwner: false,
+      allowEnrolledStudent: true,
+      requireReady: true,
+      requirePublishedForStudents: true,
+    });
 
     const levelData = lesson[LEVEL_FIELD[validLevel]];
     if (!levelData || !levelData.quiz) {
@@ -70,6 +80,9 @@ router.post('/:lessonId/submit', requireAuth, async (req, res) => {
       results,
     });
   } catch (err) {
+    if (isHttpError(err)) {
+      return res.status(err.status).json({ error: err.message });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -80,7 +93,16 @@ router.get('/:lessonId/attempts', requireAuth, async (req, res) => {
     const { lessonId } = req.params;
     const userId = req.auth?.userId || req.user?.id;
 
+    const context = await loadLessonAccessContext(lessonId, userId);
     const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    if (user?.role === 'TEACHER' || user?.role === 'ADMIN') {
+      if (!context.isTeacherOwner) {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+    } else if (!context.isEnrolledStudent) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
 
     const where = { lessonId };
     if (user?.role !== 'TEACHER') {

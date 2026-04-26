@@ -152,6 +152,11 @@ async function testEndpoints() {
     if (r.status !== 404) throw new Error(`expected 404, got ${r.status}`);
   });
 
+  await check('GET /api/lessons/demo_lesson_001 (student) → 200', async () => {
+    const r = await http('GET', '/api/lessons/demo_lesson_001', null, { demo: 'student' });
+    if (r.status !== 200) throw new Error(`got ${r.status}: ${r.raw.slice(0, 120)}`);
+  });
+
   return { smokeClass };
 }
 
@@ -183,6 +188,8 @@ async function testAdaptation(prisma) {
       standard: '__smoke_test__',
       title: '__smoke_test__',
       status: 'READY',
+      publishedAt: new Date(),
+      publishedById: 'demo_teacher_001',
       foundational: synthLevel('Foundational'),
       gradeLevel:   synthLevel('Grade Level'),
       advanced:     synthLevel('Advanced'),
@@ -211,6 +218,69 @@ async function testAdaptation(prisma) {
     return 'all 4 pipeline steps OK';
   });
 
+  await check('unenrolled student cannot access adapted lesson', async () => {
+    const outsider = await prisma.user.upsert({
+      where: { id: 'demo_student_outsider' },
+      update: {},
+      create: {
+        id: 'demo_student_outsider',
+        email: 'outsider@demo.com',
+        role: 'STUDENT',
+      },
+    });
+
+    const req = { params: { lessonId: lesson.id }, user: outsider };
+    let statusCode = 200;
+    let payload = null;
+    const res = {
+      status: (code) => {
+        statusCode = code;
+        return res;
+      },
+      json: (body) => {
+        payload = body;
+        return body;
+      },
+    };
+
+    await new Promise((resolve, reject) => {
+      adaptLesson(req, res, (err) => err ? reject(err) : resolve());
+      setTimeout(resolve, 0);
+    });
+
+    if (statusCode !== 403) throw new Error(`expected 403, got ${statusCode}`);
+    if (!payload?.error) throw new Error('expected error payload');
+  });
+
+  await check('teacher cannot stream lesson from another teacher class', async () => {
+    const otherTeacher = await prisma.user.upsert({
+      where: { id: 'demo_teacher_outsider' },
+      update: {},
+      create: {
+        id: 'demo_teacher_outsider',
+        email: 'other-teacher@demo.com',
+        role: 'TEACHER',
+      },
+    });
+
+    const req = { params: { lessonId: lesson.id }, user: otherTeacher };
+    let statusCode = 200;
+    const res = {
+      status: (code) => {
+        statusCode = code;
+        return res;
+      },
+      json: () => null,
+    };
+
+    await new Promise((resolve, reject) => {
+      adaptLesson(req, res, (err) => err ? reject(err) : resolve());
+      setTimeout(resolve, 0);
+    });
+
+    if (statusCode !== 403) throw new Error(`expected 403, got ${statusCode}`);
+  });
+
   return lesson;
 }
 
@@ -220,7 +290,10 @@ async function cleanup(prisma) {
   const r1 = await prisma.lesson.deleteMany({ where: { standard: '__smoke_test__' } });
   const r2 = await prisma.enrollment.deleteMany({ where: { class: { name: '__smoke_test__' } } });
   const r3 = await prisma.class.deleteMany({ where: { name: '__smoke_test__' } });
-  console.log(`  removed ${r1.count} lesson(s), ${r2.count} enrollment(s), ${r3.count} class(es)`);
+  const r4 = await prisma.user.deleteMany({
+    where: { id: { in: ['demo_student_outsider', 'demo_teacher_outsider'] } },
+  });
+  console.log(`  removed ${r1.count} lesson(s), ${r2.count} enrollment(s), ${r3.count} class(es), ${r4.count} user(s)`);
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -243,7 +316,7 @@ async function main() {
 
   let booted = false;
   child.stdout.on('data', (d) => {
-    if (d.toString().includes('Server running')) booted = true;
+    if (d.toString().toLowerCase().includes('server running')) booted = true;
   });
   child.stderr.on('data', (d) => process.stderr.write(`  [server] ${d}`));
 
