@@ -21,6 +21,19 @@ function prettyLabel(value) {
   return value.replaceAll('_', ' ').toLowerCase()
 }
 
+function prettyEventLabel(value) {
+  if (!value) return 'No dominant pattern yet'
+  return {
+    VIEW: 'Lesson views',
+    QUIZ_START: 'Quiz starts',
+    QUIZ_COMPLETE: 'Quiz completions',
+    LANGUAGE_TOGGLE: 'Language switching',
+    TTS_TOGGLE: 'Audio support usage',
+    BANDWIDTH_CHANGE: 'Bandwidth changes',
+    EXPORT_PDF: 'PDF exports',
+  }[value] || prettyLabel(value)
+}
+
 function ClosedLoopOverviewCard({ analytics }) {
   const metrics = analytics?.loopMetrics
   if (!metrics) return <p className="sv-muted">Generate activity in class to unlock intelligence signals.</p>
@@ -94,12 +107,12 @@ function StudentSignalsCard({ analytics }) {
     <ul className="item-list compact">
       <li>
         <strong>Support watchlist</strong>
-        <span>{analytics.insights?.studentsNeedingSupport || 0} students currently flagged for foundational support</span>
+        <span>{analytics.insights?.studentsNeedingSupport || 0} {analytics.insights?.studentsNeedingSupport === 1 ? 'student is' : 'students are'} currently flagged for foundational support</span>
         <small>{analytics.loopMetrics.diagnosticsCompleted > 0 ? `${analytics.loopMetrics.diagnosticsCompleted} diagnostics completed` : 'Run a diagnostic to sharpen this signal'}</small>
       </li>
       <li>
         <strong>Top student behavior</strong>
-        <span>{prettyLabel(topEvent)}</span>
+        <span>{prettyEventLabel(topEvent)}</span>
         <small>{analytics.loopMetrics.engagementEvents} engagement events captured across the class</small>
       </li>
       <li>
@@ -125,7 +138,7 @@ function RecommendedActionsCard({ analytics, recommendation }) {
     <ul className="item-list compact">
       {suggestions.map((item, index) => (
         <li key={`${index}-${item.slice(0, 20)}`}>
-          <strong>{index === 0 ? 'Highest priority' : `Next move ${index}`}</strong>
+          <strong>{index === 0 ? 'Highest priority' : `Next move ${index + 1}`}</strong>
           <span>{item}</span>
         </li>
       ))}
