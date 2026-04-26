@@ -1,27 +1,26 @@
 import { Link } from 'react-router-dom'
 
-const transformationModes = [
-  'Interactive lesson',
-  'Flashcards',
-  'Fill-in-the-blank',
-  'Quiz mode',
-  'Visual explanation',
-  'Practice problems',
+const studentModes = [
+  'Read at your level',
+  'Listen as audio',
+  'Switch language',
+  'Quick quiz',
+  'Vocabulary practice',
   'Daily focus plan',
 ]
 
 const accessPillars = [
   {
     title: 'Language Differences',
-    body: 'Generate leveled explanations, translated supports, and vocabulary scaffolds for multilingual learners.',
+    body: 'Lessons translate on the fly with grade-appropriate vocabulary support, so multilingual learners stay with the class.',
   },
   {
     title: 'Learning Differences',
-    body: 'Adapt pacing and mode choice for IEP/504 needs without forcing teachers to rebuild every lesson.',
+    body: 'Reading level, font, contrast, and audio settings adapt per student, so teachers do not have to rebuild a lesson for every IEP or 504 plan.',
   },
   {
-    title: 'Socioeconomic Gaps',
-    body: 'Turn one curriculum into structured, low-friction study paths that reduce after-school resource barriers.',
+    title: 'Bandwidth & Access Gaps',
+    body: 'A text-only mode keeps lessons usable on slow or unreliable connections, so home-internet quality stops being a barrier.',
   },
 ]
 
@@ -29,11 +28,12 @@ export default function Landing() {
   return (
     <main className="landing-page">
       <section className="hero-panel">
-        <p className="kicker">EduForge: AI Classroom Support Layer</p>
-        <h1>A single lesson can unlock a universe of learning pathways.</h1>
+        <p className="kicker">EduForge: One lesson, every learner</p>
+        <h1>One lesson plan. Every reading level, every language, every device.</h1>
         <p>
-          Teachers should not have to redesign curriculum for every learner. EduForge transforms one
-          uploaded lesson into multiple engaging learning modes so more students can access and understand the material.
+          Teachers should not have to rewrite their curriculum for each student.
+          EduForge takes one lesson and adapts it to each learner&rsquo;s reading level,
+          language, and accessibility needs.
         </p>
 
         <div className="hero-cta-row">
@@ -43,39 +43,42 @@ export default function Landing() {
           <Link className="bf-btn ghost" to="/student">
             Open Student View
           </Link>
+          <Link className="bf-btn ghost" to="/join">
+            Join a class
+          </Link>
         </div>
 
         <article className="single-idea-strip">
           <h3>The single idea</h3>
           <p>
-            One curriculum input should become many accessible outputs. Same standards, better access,
-            stronger engagement, and clearer progression for every student.
+            One lesson should reach every student. Same standard, more access,
+            stronger engagement, and a clearer path forward for every learner.
           </p>
         </article>
       </section>
 
       <section className="bf-card flow-panel">
-        <h2>Teacher Input to AI Transformation to Student Access</h2>
+        <h2>How it works</h2>
         <div className="flow-grid">
           <article>
-            <h3>1. Teacher uploads</h3>
-            <p>Slides, assignment prompts, exam topics, or lesson plans.</p>
+            <h3>1. Teacher writes once</h3>
+            <p>Paste a standard or describe a lesson. EduForge writes a draft you can edit.</p>
           </article>
           <article>
-            <h3>2. EduForge transforms</h3>
-            <p>Creates differentiated learning artifacts from the same source content.</p>
+            <h3>2. EduForge differentiates</h3>
+            <p>Each lesson comes in three reading levels with a quiz, vocabulary, and activities.</p>
           </article>
           <article>
-            <h3>3. Students choose mode</h3>
-            <p>Visual, quiz, flashcard, practice, or explain-simply pathways based on need.</p>
+            <h3>3. Students get it their way</h3>
+            <p>Students choose their reading level, language, font size, and audio. The lesson adapts in real time.</p>
           </article>
         </div>
       </section>
 
       <section className="bf-card mode-cloud">
-        <h2>Generated Learning Modes</h2>
+        <h2>What students can do with one lesson</h2>
         <div className="chip-list">
-          {transformationModes.map((mode) => (
+          {studentModes.map((mode) => (
             <span key={mode}>{mode}</span>
           ))}
         </div>
@@ -83,12 +86,12 @@ export default function Landing() {
 
       <section className="feature-grid">
         <article className="bf-card">
-          <h3>Teacher-Oriented Lesson Planning</h3>
-          <p>Upload or describe a lesson and get standards-aligned micro steps for delivery.</p>
+          <h3>Lesson planning that respects your time</h3>
+          <p>Generate a standards-aligned lesson, then revise it. EduForge tracks what you keep so the next draft is closer to what you want.</p>
         </article>
         <article className="bf-card">
-          <h3>Adaptive Learning Modes</h3>
-          <p>Generate leveled practice modes for ELL, IEP, and mixed-readiness classrooms.</p>
+          <h3>Built-in differentiation</h3>
+          <p>Three reading levels and accessibility options come with every lesson. No add-ons, no rebuild.</p>
         </article>
       </section>
 

@@ -36,7 +36,7 @@ function prettyEventLabel(value) {
 
 function ClosedLoopOverviewCard({ analytics }) {
   const metrics = analytics?.loopMetrics
-  if (!metrics) return <p className="sv-muted">Generate activity in class to unlock intelligence signals.</p>
+  if (!metrics) return <p className="sv-muted">Activity will appear here once students open lessons or take quizzes.</p>
 
   const items = [
     { label: 'Published lessons', value: metrics.publishedLessons },
@@ -60,7 +60,7 @@ function ClosedLoopOverviewCard({ analytics }) {
 }
 
 function ClassInsightsCard({ analytics }) {
-  if (!analytics?.insights) return <p className="sv-muted">Insights will appear once students interact with lessons.</p>
+  if (!analytics?.insights) return <p className="sv-muted">Insights will appear once students start opening lessons.</p>
 
   const { insights, readingLevelDistribution, lessonEngagement } = analytics
   const readingMix = readingLevelDistribution?.length
@@ -95,7 +95,7 @@ function ClassInsightsCard({ analytics }) {
 
 function StudentSignalsCard({ analytics }) {
   if (!analytics?.loopMetrics) {
-    return <p className="sv-muted">Student signals will appear after diagnostics, lesson opens, and quiz attempts.</p>
+    return <p className="sv-muted">Student data will appear once they take a diagnostic, open a lesson, or finish a quiz.</p>
   }
 
   const topEvent = analytics.insights?.topEventType
@@ -408,13 +408,13 @@ function DashboardTab({ onNavigate }) {
       </div>
 
       <p style={{ marginBottom: '1.25rem', color: 'var(--muted)' }}>
-        Welcome back, Teacher. This dashboard turns classroom signals into next steps: what students need, what the AI got changed, and where to intervene next.
+        Welcome back. This dashboard shows what your students need, what you have changed in your AI-generated lessons, and what to do next.
       </p>
 
       {classes.length > 0 && (
         <div style={{ marginBottom: '1rem', maxWidth: '280px' }}>
           <label style={{ display: 'grid', gap: '6px' }}>
-            <span className="sv-muted">Class intelligence view</span>
+            <span className="sv-muted">Active class</span>
             <select value={primaryClassId || ''} onChange={(e) => setPrimaryClassId(e.target.value)}>
               {classes.map((cls) => (
                 <option key={cls.id} value={cls.id}>{cls.name}</option>
@@ -425,13 +425,13 @@ function DashboardTab({ onNavigate }) {
       )}
 
       <section className="bf-card recommendation-strip" style={{ marginBottom: '12px' }}>
-        <h3>Closed-Loop Classroom Intelligence</h3>
+        <h3>Class overview</h3>
         <p>
           {activeClassName
-            ? `EduForge is tracking how ${activeClassName} students respond to lessons, how teachers revise AI output, and what support to recommend next.`
-            : 'EduForge will surface classroom intelligence once a class is selected.'}
+            ? `Tracking how ${activeClassName} students engage with lessons, the edits you make to AI drafts, and the next supports we recommend.`
+            : 'Pick a class to see student engagement, your edits to AI drafts, and recommended next steps.'}
         </p>
-        <span>Signals flow from diagnostics, adaptation, engagement, quizzes, and teacher feedback into one instructional loop.</span>
+        <span>Diagnostics, adaptation, engagement, quizzes, and teacher edits all feed this view.</span>
       </section>
 
       <section className="dashboard-grid">
@@ -698,7 +698,7 @@ function LessonForgeTab() {
   return (
     <div>
       <p className="sv-muted" style={{ marginBottom: '1.25rem' }}>
-        Drop in a learning goal or topic and EduForge will forge a differentiated 3-tier lesson with activities, quiz checks, and vocabulary supports.
+        Enter a standard or topic and EduForge generates three reading levels, vocabulary, activities, and a quiz.
       </p>
 
       <section className="bf-card">
@@ -765,7 +765,7 @@ function LessonForgeTab() {
             <div style={{ fontSize: '1.8rem' }}>⚒️</div>
             <div>
               <strong>Forging at the anvil…</strong>
-              <div className="sv-muted">EduForge is shaping differentiated tiers, vocabulary, activities, and checks.</div>
+              <div className="sv-muted">Generating three reading levels, vocabulary, activities, and a quiz.</div>
             </div>
           </div>
         )}

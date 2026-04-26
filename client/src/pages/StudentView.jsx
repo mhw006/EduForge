@@ -219,7 +219,7 @@ function DiagnosticSupportBanner({ profile, lesson, diagnostics }) {
     <section className="bf-card" style={{ marginBottom: '12px' }}>
       <h3 style={{ marginTop: 0 }}>Diagnostic-driven support</h3>
       <p className="sv-muted" style={{ marginBottom: '0.75rem' }}>
-        EduForge is adapting this experience using your latest learner profile and diagnostic signals.
+        EduForge is adapting this lesson based on your latest learner profile and diagnostic results.
       </p>
       <ul className="item-list compact">
         {readingDiagnostic && (
