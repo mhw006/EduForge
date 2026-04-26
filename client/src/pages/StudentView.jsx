@@ -172,27 +172,112 @@ function ProfileToolbar({ profile, languages, saving, onChange }) {
 
 function decodeHtml(str) {
   if (!str) return ''
-  const el = document.createElement('textarea')
+  const el = document.createElement('div')
   el.innerHTML = str
-  return el.value
+  return el.textContent || el.innerText || ''
+}
+
+const TTS_LANG_MAP = {
+  es: 'es-ES',
+  fr: 'fr-FR',
+  zh: 'zh-CN',
+  pt: 'pt-BR',
+  ar: 'ar-SA',
+  ko: 'ko-KR',
+  vi: 'vi-VN',
+  hi: 'hi-IN',
+  ru: 'ru-RU',
+  de: 'de-DE',
+  ja: 'ja-JP',
+  it: 'it-IT',
+  tl: 'fil-PH',
+}
+
+function getTtsLanguage(language) {
+  return TTS_LANG_MAP[language] || 'en-US'
+}
+
+function normalizeSpeechText(text) {
+  return text
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([.,;:!?])/g, '$1')
+    .trim()
+}
+
+function chunkTextForSpeech(text, maxLength = 900) {
+  const normalized = normalizeSpeechText(text)
+  if (!normalized) return []
+
+  const sentenceChunks = normalized.match(/[^.!?。！？]+[.!?。！？]+|[^.!?。！？]+$/g) || [normalized]
+  const chunks = []
+  let current = ''
+
+  sentenceChunks.forEach((sentence) => {
+    const next = sentence.trim()
+    if (!next) return
+
+    if (next.length > maxLength) {
+      if (current) {
+        chunks.push(current)
+        current = ''
+      }
+
+      for (let index = 0; index < next.length; index += maxLength) {
+        chunks.push(next.slice(index, index + maxLength).trim())
+      }
+      return
+    }
+
+    const candidate = current ? `${current} ${next}` : next
+    if (candidate.length > maxLength) {
+      chunks.push(current)
+      current = next
+    } else {
+      current = candidate
+    }
+  })
+
+  if (current) chunks.push(current)
+  return chunks
+}
+
+function findVoiceForLanguage(language) {
+  const targetLang = getTtsLanguage(language)
+  const langPrefix = targetLang.split('-')[0].toLowerCase()
+  const voices = _voiceCache.voices.length > 0
+    ? _voiceCache.voices
+    : (window.speechSynthesis?.getVoices() || [])
+
+  return voices.find((voice) => voice.lang.toLowerCase().startsWith(langPrefix))
+}
+
+// Module-level voice cache — survives component unmount/remount on level changes.
+const _voiceCache = { voices: [] }
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+  const _syncVoices = () => {
+    const v = window.speechSynthesis.getVoices()
+    if (v.length > 0) _voiceCache.voices = v
+  }
+  _syncVoices()
+  window.speechSynthesis.addEventListener('voiceschanged', _syncVoices)
 }
 
 function LessonRenderer({ lesson, profile }) {
   const content = lesson?.content
   const [speaking, setSpeaking] = useState(false)
   const utteranceRef = useRef(null)
-  const voicesRef = useRef([])
+  const speechQueueRef = useRef([])
+  const speechCancelledRef = useRef(false)
 
   useEffect(() => {
-    function loadVoices() {
-      const v = window.speechSynthesis?.getVoices() || []
-      if (v.length > 0) voicesRef.current = v
-    }
-    loadVoices()
-    window.speechSynthesis?.addEventListener('voiceschanged', loadVoices)
     return () => {
-      window.speechSynthesis?.removeEventListener('voiceschanged', loadVoices)
-      window.speechSynthesis?.cancel()
+      speechCancelledRef.current = true
+      // Only cancel if actually speaking — calling cancel() on an idle
+      // synthesis leaves Chrome in a broken state that silently drops the
+      // next speak() call.
+      if (window.speechSynthesis?.speaking || window.speechSynthesis?.pending) {
+        window.speechSynthesis.cancel()
+      }
     }
   }, [])
 
@@ -215,34 +300,56 @@ function LessonRenderer({ lesson, profile }) {
   ].filter(Boolean).join(' ')
 
   function speak() {
-    if (!content.mainContent) return
-    window.speechSynthesis.cancel()
+    if (!content.mainContent || !window.speechSynthesis) return
 
-    const TTS_LANG_MAP = {
-      es: 'es-ES', fr: 'fr-FR', zh: 'zh-CN', pt: 'pt-BR',
-      ar: 'ar-SA', ko: 'ko-KR', vi: 'vi-VN', hi: 'hi-IN',
-      ru: 'ru-RU', de: 'de-DE', ja: 'ja-JP', it: 'it-IT',
+    // If translation failed the content is still English; use English voice.
+    const effectiveLang = content._translationFailed ? 'en' : profile.language
+    const raw = `${decodeHtml(content.overview)}\n\n${decodeHtml(content.mainContent)}`
+    const chunks = chunkTextForSpeech(raw)
+    if (chunks.length === 0) return
+
+    const voice = findVoiceForLanguage(effectiveLang)
+    const targetLang = getTtsLanguage(effectiveLang)
+
+    const speakNext = () => {
+      if (speechCancelledRef.current) return
+
+      const nextText = speechQueueRef.current.shift()
+      if (!nextText) {
+        setSpeaking(false)
+        utteranceRef.current = null
+        return
+      }
+
+      const utterance = new SpeechSynthesisUtterance(nextText)
+      if (voice) {
+        utterance.voice = voice
+        utterance.lang = voice.lang
+      } else {
+        utterance.lang = targetLang
+      }
+
+      utterance.onend = speakNext
+      utterance.onerror = () => {
+        setSpeaking(false)
+        utteranceRef.current = null
+      }
+      utteranceRef.current = utterance
+      window.speechSynthesis.speak(utterance)
     }
-    const targetLang = TTS_LANG_MAP[profile.language] || 'en-US'
-    // Decode HTML entities (DeepL tag_handling:html encodes apostrophes etc.)
-    const text = `${decodeHtml(content.overview)}\n\n${decodeHtml(content.mainContent)}`
 
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = targetLang
-
-    const langPrefix = targetLang.split('-')[0].toLowerCase()
-    const match = voicesRef.current.find((v) => v.lang.toLowerCase().startsWith(langPrefix))
-    if (match) utterance.voice = match
-
-    utterance.onend = () => setSpeaking(false)
-    utterance.onerror = () => setSpeaking(false)
-    utteranceRef.current = utterance
+    speechCancelledRef.current = false
+    speechQueueRef.current = chunks
+    window.speechSynthesis.cancel()
     setSpeaking(true)
-    window.speechSynthesis.speak(utterance)
+    setTimeout(speakNext, 50)
   }
 
   function stopSpeaking() {
+    speechCancelledRef.current = true
+    speechQueueRef.current = []
     window.speechSynthesis.cancel()
+    utteranceRef.current = null
     setSpeaking(false)
   }
 
