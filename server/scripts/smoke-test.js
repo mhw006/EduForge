@@ -170,6 +170,56 @@ async function testEndpoints(prisma) {
     if (r.status !== 200) throw new Error(`got ${r.status}: ${r.raw.slice(0, 120)}`);
   });
 
+  // ── Phase 2: standards retrieval ──
+  await check('GET /api/standards/search?q=water%20cycle → 200', async () => {
+    const r = await http('GET', '/api/standards/search?q=water%20cycle&limit=3');
+    if (r.status !== 200) throw new Error(`got ${r.status}`);
+    if (!r.body?.standards?.length) throw new Error('no standards matched');
+    if (!r.body.standards[0].fullText) throw new Error('missing fullText field');
+  });
+
+  await check('GET /api/standards/CCSS.ELA-LITERACY.RI.6.1 → 200', async () => {
+    const r = await http('GET', '/api/standards/CCSS.ELA-LITERACY.RI.6.1');
+    if (r.status !== 200) throw new Error(`got ${r.status}`);
+    if (!r.body?.fullText) throw new Error('missing fullText field');
+  });
+
+  // ── Phase 3: engagement event capture ──
+  await check('POST /api/analytics/event → 204 (no content)', async () => {
+    const r = await http('POST', '/api/analytics/event',
+      { lessonId: 'demo_lesson_001', eventType: 'LANGUAGE_TOGGLE', metadata: { from: 'en', to: 'es' } },
+      { demo: 'student' });
+    if (r.status !== 204) throw new Error(`expected 204, got ${r.status}`);
+  });
+
+  await check('POST /api/analytics/event (bad eventType) → 204 silent drop', async () => {
+    const r = await http('POST', '/api/analytics/event',
+      { lessonId: 'demo_lesson_001', eventType: 'INVALID_EVENT' },
+      { demo: 'student' });
+    if (r.status !== 204) throw new Error(`expected 204 silent drop, got ${r.status}`);
+  });
+
+  // ── Phase 1: edit telemetry ──
+  await check('POST /api/edits/demo_lesson_001 (ACCEPTED_AS_IS) → 201', async () => {
+    const r = await http('POST', '/api/edits/demo_lesson_001',
+      { level: 'GRADE_LEVEL', section: 'OVERVIEW', editType: 'ACCEPTED_AS_IS', aiVersion: 'test overview' },
+      { demo: 'teacher' });
+    if (r.status !== 201) throw new Error(`got ${r.status}: ${r.raw.slice(0, 120)}`);
+    if (!r.body?.id) throw new Error('no edit id returned');
+  });
+
+  await check('GET /api/edits/lesson/demo_lesson_001 → 200 with at least 1 edit', async () => {
+    const r = await http('GET', '/api/edits/lesson/demo_lesson_001', null, { demo: 'teacher' });
+    if (r.status !== 200) throw new Error(`got ${r.status}`);
+    if (!r.body?.edits?.length) throw new Error('expected at least 1 edit');
+  });
+
+  await check('GET /api/edits/summary?lessonId=demo_lesson_001 → 200', async () => {
+    const r = await http('GET', '/api/edits/summary?lessonId=demo_lesson_001', null, { demo: 'teacher' });
+    if (r.status !== 200) throw new Error(`got ${r.status}`);
+    if (typeof r.body?.acceptanceRate !== 'number') throw new Error('missing acceptanceRate');
+  });
+
   return { smokeClass };
 }
 
@@ -321,6 +371,17 @@ async function cleanup(prisma) {
   await prisma.audioCache.deleteMany({ where: { lessonId: { in: lessonIds } } });
   await prisma.quizAttempt.deleteMany({ where: { lessonId: { in: lessonIds } } });
   await prisma.engagementEvent.deleteMany({ where: { lessonId: { in: lessonIds } } });
+  await prisma.lessonEdit.deleteMany({ where: { lessonId: { in: lessonIds } } });
+
+  // Also clear test telemetry written against the persistent demo lesson
+  await prisma.lessonEdit.deleteMany({ where: { lessonId: 'demo_lesson_001', aiVersion: { equals: 'test overview' } } });
+  await prisma.engagementEvent.deleteMany({
+    where: {
+      lessonId: 'demo_lesson_001',
+      eventType: 'LANGUAGE_TOGGLE',
+      metadata: { path: ['from'], equals: 'en' },
+    },
+  });
 
   const r1 = await prisma.lesson.deleteMany({ where: { id: { in: lessonIds } } });
   const r2 = await prisma.enrollment.deleteMany({ where: { class: { name: '__smoke_test__' } } });
