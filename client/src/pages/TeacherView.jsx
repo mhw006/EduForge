@@ -11,13 +11,6 @@ const TABS = [
   { id: 'adapt',       icon: '🎯', label: 'Adapt Studio' },
 ]
 
-// ─── Dashboard tab ────────────────────────────────────────────────────────────
-const accessibilityCoverage = [
-  { id: 'ac1', group: 'Multilingual learners',     coverage: '4/6 lessons adapted this week'       },
-  { id: 'ac2', group: 'IEP / 504 supports',        coverage: '3/6 lessons adapted this week'       },
-  { id: 'ac3', group: 'Foundational level students', coverage: '5/6 lessons adapted this week'    },
-]
-
 function summarizeStandard(standard) {
   if (!standard) return 'Standard ready for live differentiation'
   return standard.length > 110 ? `${standard.slice(0, 107)}...` : standard
@@ -71,17 +64,48 @@ function ClassInsightsCard({ analytics }) {
       <li>
         <strong>Lowest performing level</strong>
         <span>{prettyLabel(insights.lowestPerformingLevel)}</span>
-        <small>{insights.avgQuizScoreOverall != null ? `Average quiz score: ${insights.avgQuizScoreOverall}%` : 'No quiz attempts yet'}</small>
+        <small>{insights.avgQuizScoreOverall != null ? `Average quiz score: ${insights.avgQuizScoreOverall}%` : 'Publish a quiz-backed lesson to unlock performance insight'}</small>
       </li>
       <li>
         <strong>Teacher rewrite hotspot</strong>
         <span>{prettyLabel(insights.mostEditedSection)}</span>
-        <small>{analytics.editSectionSummary?.length ? 'AI vs final deltas are being tracked live' : 'No teacher edits logged yet'}</small>
+        <small>{analytics.editSectionSummary?.length ? 'AI vs final deltas are being tracked live' : 'No teacher feedback logged yet — accept or edit one generated section to start the loop'}</small>
       </li>
       <li>
         <strong>Reading-level mix</strong>
         <span>{readingMix}</span>
         <small>{lessonEngagement?.length ? `${lessonEngagement.length} ready lessons in this class` : 'No ready lessons yet'}</small>
+      </li>
+    </ul>
+  )
+}
+
+function StudentSignalsCard({ analytics }) {
+  if (!analytics?.loopMetrics) {
+    return <p className="sv-muted">Student signals will appear after diagnostics, lesson opens, and quiz attempts.</p>
+  }
+
+  const topEvent = analytics.insights?.topEventType
+  const mathMix = analytics.mathLevelDistribution?.length
+    ? analytics.mathLevelDistribution.map((row) => `${prettyLabel(row.level)} (${row.count})`).join(' · ')
+    : 'No math profile data yet'
+
+  return (
+    <ul className="item-list compact">
+      <li>
+        <strong>Support watchlist</strong>
+        <span>{analytics.insights?.studentsNeedingSupport || 0} students currently flagged for foundational support</span>
+        <small>{analytics.loopMetrics.diagnosticsCompleted > 0 ? `${analytics.loopMetrics.diagnosticsCompleted} diagnostics completed` : 'Run a diagnostic to sharpen this signal'}</small>
+      </li>
+      <li>
+        <strong>Top student behavior</strong>
+        <span>{prettyLabel(topEvent)}</span>
+        <small>{analytics.loopMetrics.engagementEvents} engagement events captured across the class</small>
+      </li>
+      <li>
+        <strong>Math-level mix</strong>
+        <span>{mathMix}</span>
+        <small>{analytics.loopMetrics.studentsTracked} student profiles represented in this view</small>
       </li>
     </ul>
   )
@@ -101,7 +125,7 @@ function RecommendedActionsCard({ analytics, recommendation }) {
     <ul className="item-list compact">
       {suggestions.map((item, index) => (
         <li key={`${index}-${item.slice(0, 20)}`}>
-          <strong>Next move {index + 1}</strong>
+          <strong>{index === 0 ? 'Highest priority' : `Next move ${index}`}</strong>
           <span>{item}</span>
         </li>
       ))}
@@ -268,7 +292,7 @@ function DashboardTab({ onNavigate }) {
       </div>
 
       <p style={{ marginBottom: '1.25rem', color: 'var(--muted)' }}>
-        Welcome back, Teacher. Your live demo lane is ready: generate a lesson, publish it, then switch to the student view to show adaptation in real time.
+        Welcome back, Teacher. This dashboard turns classroom signals into next steps: what students need, what the AI got changed, and where to intervene next.
       </p>
 
       {classes.length > 0 && (
@@ -288,10 +312,10 @@ function DashboardTab({ onNavigate }) {
         <h3>Closed-Loop Classroom Intelligence</h3>
         <p>
           {activeClassName
-            ? `EduForge is tracking what ${activeClassName} students struggle with, how they engage, and where teachers rewrite AI output.`
+            ? `EduForge is tracking how ${activeClassName} students respond to lessons, how teachers revise AI output, and what support to recommend next.`
             : 'EduForge will surface classroom intelligence once a class is selected.'}
         </p>
-        <span>Signals flow from diagnostics, adaptation, engagement, quizzes, and teacher edits.</span>
+        <span>Signals flow from diagnostics, adaptation, engagement, quizzes, and teacher feedback into one instructional loop.</span>
       </section>
 
       <section className="dashboard-grid">
@@ -305,6 +329,10 @@ function DashboardTab({ onNavigate }) {
 
         <DashboardCard title="Class Insights">
           <ClassInsightsCard analytics={classAnalytics} />
+        </DashboardCard>
+
+        <DashboardCard title="Student Learning Signals">
+          <StudentSignalsCard analytics={classAnalytics} />
         </DashboardCard>
 
         <DashboardCard
@@ -331,17 +359,6 @@ function DashboardTab({ onNavigate }) {
                 <small>Ready for your first demo-ready lesson</small>
               </li>
             )}
-          </ul>
-        </DashboardCard>
-
-        <DashboardCard title="Accessibility Coverage">
-          <ul className="item-list compact">
-            {accessibilityCoverage.map(item => (
-              <li key={item.id}>
-                <strong>{item.group}</strong>
-                <small>{item.coverage}</small>
-              </li>
-            ))}
           </ul>
         </DashboardCard>
 
