@@ -3,7 +3,25 @@
     "allow": [
       "Bash(node -e \"require\\('./src/services/lessonforge'\\); console.log\\('lessonforge.js loaded OK'\\)\")",
       "Bash(node -e \"require\\('./src/routes/lessons'\\); console.log\\('lessons.js loaded OK'\\)\")",
-      "Bash(timeout 8 npm run dev)"
+      "Bash(timeout 8 npm run dev)",
+      "Bash(node -e ' *)",
+      "Bash(npm run *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(node -e \"require\\('./src/routes/lessons'\\); console.log\\('lessons.js OK'\\)\")",
+      "Bash(node -e \"require\\('./src/routes/lessons'\\); require\\('./src/lib/lesson-access'\\); console.log\\('OK'\\)\")",
+      "Bash(node -e \"require\\('./src/index'\\)\")",
+      "Bash(kill %1)",
+      "Bash(git fetch *)",
+      "Bash(grep \"DATABASE_URL\" server/.env)",
+      "Bash(grep \"DATABASE_URL\" .env)",
+      "Bash(node -e \"require\\('./src/routes/diagnostics'\\); console.log\\('diagnostics route ok'\\)\")",
+      "Bash(node -e \"require\\('./src/services/diagnostics'\\); console.log\\('diagnostics service ok'\\)\")",
+      "Bash(npx vite *)"
     ]
   }
 }

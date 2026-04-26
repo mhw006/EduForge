@@ -168,6 +168,22 @@ export async function getEditSummary({ classId, lessonId } = {}) {
   return handleResponse(response)
 }
 
+// ─── Diagnostic Adaptation Loop ──────────────────────────────────────────────
+
+export async function getLessonDiagnostic(lessonId) {
+  const response = await apiFetch(`/diagnostics/${lessonId}`, { demoUser: 'student' })
+  return handleResponse(response)
+}
+
+export async function submitLessonDiagnostic(lessonId, answers) {
+  const response = await apiFetch(`/diagnostics/${lessonId}/submit`, {
+    method: 'POST',
+    body: { answers },
+    demoUser: 'student',
+  })
+  return handleResponse(response)
+}
+
 // ─── Phase 3: Engagement Telemetry ───────────────────────────────────────────
 // Used by StudentView to log toggle events. Fire-and-forget — student UX never
 // blocks on telemetry.

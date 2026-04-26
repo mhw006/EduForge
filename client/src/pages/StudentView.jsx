@@ -8,6 +8,8 @@ import {
   getTranslationLanguages,
   updateProfile,
   logEngagementEvent,
+  getLessonDiagnostic,
+  submitLessonDiagnostic,
 } from '../services/aiClient'
 
 const TABS = [
@@ -262,6 +264,221 @@ if (typeof window !== 'undefined' && window.speechSynthesis) {
   window.speechSynthesis.addEventListener('voiceschanged', _syncVoices)
 }
 
+const READING_LEVEL_LABELS = {
+  FOUNDATIONAL: 'Foundational',
+  GRADE_LEVEL: 'Grade Level',
+  ADVANCED: 'Advanced',
+}
+
+const BANDWIDTH_LABELS = {
+  FULL: 'Full Media',
+  REDUCED: 'Reduced Media',
+  TEXT_ONLY: 'Text Only',
+}
+
+// ─── DiagnosticPanel ─────────────────────────────────────────────────────────
+// Self-contained component. Reset per lesson via key={lessonId}.
+function DiagnosticPanel({ lessonId, onComplete }) {
+  const [phase, setPhase] = useState('loading') // loading | ready | scoring | done | error | dismissed
+  const [diagnostic, setDiagnostic] = useState(null)
+  const [answers, setAnswers] = useState({})
+  const [result, setResult] = useState(null)
+
+  useEffect(() => {
+    if (!lessonId) { setPhase('error'); return }
+    setPhase('loading')
+    getLessonDiagnostic(lessonId)
+      .then((data) => { setDiagnostic(data); setPhase('ready') })
+      .catch(() => setPhase('error'))
+  }, [lessonId])
+
+  async function handleSubmit() {
+    if (!diagnostic) return
+    setPhase('scoring')
+    try {
+      const res = await submitLessonDiagnostic(lessonId, answers)
+      setResult(res)
+      setPhase('done')
+      onComplete(res)
+    } catch {
+      setPhase('error')
+    }
+  }
+
+  if (phase === 'dismissed') return null
+
+  if (phase === 'loading') {
+    return (
+      <div className="diagnostic-card">
+        <p className="sv-muted">Preparing diagnostic...</p>
+      </div>
+    )
+  }
+
+  if (phase === 'scoring') {
+    return (
+      <div className="diagnostic-card">
+        <p className="sv-muted">Scoring... Applying adaptation...</p>
+      </div>
+    )
+  }
+
+  if (phase === 'error') {
+    return (
+      <div className="diagnostic-card">
+        <p className="sv-muted">Could not load diagnostic. Continue with your lesson below.</p>
+        <button className="bf-btn ghost small" type="button" onClick={() => setPhase('dismissed')}>
+          Dismiss
+        </button>
+      </div>
+    )
+  }
+
+  if (phase === 'done' && result) {
+    const levelChanged = result.newReadingLevel !== result.previousReadingLevel
+    return (
+      <div className="diagnostic-card adaptation-done">
+        <div className="adaptation-header">
+          <div className="adaptation-check">✓</div>
+          <h3>Adaptation Applied</h3>
+          <button className="bf-btn ghost small" type="button" onClick={() => setPhase('dismissed')}>
+            ✕
+          </button>
+        </div>
+        <p style={{ margin: '0 0 6px', fontSize: '14px' }}>
+          Diagnostic score: <strong>{result.score} / {result.totalQuestions}</strong>
+        </p>
+        <p style={{ margin: '0 0 6px', fontSize: '14px' }}>
+          Reading level:{' '}
+          <span className="level-badge">{READING_LEVEL_LABELS[result.previousReadingLevel] || result.previousReadingLevel}</span>
+          {' → '}
+          <span className={`level-badge${levelChanged ? ' changed' : ''}`}>
+            {READING_LEVEL_LABELS[result.newReadingLevel] || result.newReadingLevel}
+          </span>
+        </p>
+        {result.skillsMissed?.length > 0 && (
+          <div className="adaptation-why-dots">
+            {[...new Set(result.skillsMissed)].map((skill) => (
+              <span key={skill} className="adaptation-why-tag">{skill}</span>
+            ))}
+          </div>
+        )}
+        <p className="adaptation-reason">{result.adaptationReason}</p>
+        {result.nextAction && <p className="sv-muted" style={{ fontSize: '13px', margin: '4px 0 0' }}>{result.nextAction}</p>}
+      </div>
+    )
+  }
+
+  // phase === 'ready'
+  const { questions = [], title } = diagnostic || {}
+  const allAnswered = questions.length > 0 && questions.every((q) => answers[q.id])
+
+  return (
+    <div className="diagnostic-card">
+      <div className="diagnostic-header">
+        <div>
+          <h3>Quick Learning Check</h3>
+          <p>Answer {questions.length} questions so EduForge can adapt this lesson to you.</p>
+        </div>
+        <button className="bf-btn ghost small" type="button" onClick={() => setPhase('dismissed')}>
+          Skip
+        </button>
+      </div>
+
+      <ol className="diagnostic-questions">
+        {questions.map((q) => (
+          <li key={q.id} className="diagnostic-question">
+            <p>{q.question}</p>
+            <ul className="diagnostic-options">
+              {(q.options || []).map((option) => {
+                const letter = option[0]
+                return (
+                  <li key={option}>
+                    <button
+                      type="button"
+                      className={`diagnostic-option${answers[q.id] === letter ? ' selected' : ''}`}
+                      onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: letter }))}
+                    >
+                      {option}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </li>
+        ))}
+      </ol>
+
+      <div className="diagnostic-submit-row">
+        <button
+          type="button"
+          className="bf-btn"
+          onClick={handleSubmit}
+          disabled={!allAnswered}
+        >
+          Submit Answers
+        </button>
+        {!allAnswered && (
+          <span className="sv-muted" style={{ fontSize: '12px' }}>Answer all questions to submit.</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── AdaptationBanner ─────────────────────────────────────────────────────────
+// Shows alongside lesson content explaining why the lesson looks this way.
+// Only renders when at least one non-default setting is active.
+function AdaptationBanner({ profile }) {
+  if (!profile) return null
+
+  const hasDiagnostic = Boolean(profile.diagnosticReadingLevel)
+  const hasNonDefaultLevel = profile.readingLevel !== 'GRADE_LEVEL'
+  const hasNonDefaultLanguage = profile.language && profile.language !== 'en'
+  const hasNonDefaultBandwidth = profile.bandwidthMode && profile.bandwidthMode !== 'FULL'
+
+  // Collect human-readable reasons for the sentence
+  const parts = [
+    hasDiagnostic ? `diagnostic result (${READING_LEVEL_LABELS[profile.readingLevel] || profile.readingLevel})` : (hasNonDefaultLevel ? `${READING_LEVEL_LABELS[profile.readingLevel] || profile.readingLevel} reading level` : null),
+    hasNonDefaultLanguage ? `${getLanguageLabel(profile.language)} language preference` : null,
+    hasNonDefaultBandwidth ? `${BANDWIDTH_LABELS[profile.bandwidthMode]} mode` : null,
+    profile.highContrast ? 'high contrast display' : null,
+    profile.dyslexiaFont ? 'dyslexia font' : null,
+    profile.ttsEnabled ? 'text-to-speech' : null,
+  ].filter(Boolean)
+
+  if (parts.length === 0) return null
+
+  return (
+    <div className="adaptation-why-card">
+      <strong>Why this lesson looks this way</strong>
+      <div className="adaptation-why-dots" style={{ marginTop: '6px' }}>
+        {(hasDiagnostic || hasNonDefaultLevel) && (
+          <span className="adaptation-why-tag">
+            Level: {READING_LEVEL_LABELS[profile.readingLevel] || profile.readingLevel}
+          </span>
+        )}
+        {hasNonDefaultLanguage && (
+          <span className="adaptation-why-tag">
+            Language: {getLanguageLabel(profile.language)}
+          </span>
+        )}
+        {hasNonDefaultBandwidth && (
+          <span className="adaptation-why-tag">
+            {BANDWIDTH_LABELS[profile.bandwidthMode]}
+          </span>
+        )}
+        {profile.highContrast && <span className="adaptation-why-tag">High contrast</span>}
+        {profile.dyslexiaFont && <span className="adaptation-why-tag">Dyslexia font</span>}
+        {profile.ttsEnabled && <span className="adaptation-why-tag">TTS on</span>}
+      </div>
+      <p className="sv-muted" style={{ margin: '6px 0 0', fontSize: '12px' }}>
+        This version was adapted using your {parts.join(', ')}.
+      </p>
+    </div>
+  )
+}
+
 function LessonRenderer({ lesson, profile }) {
   const content = lesson?.content
   const [speaking, setSpeaking] = useState(false)
@@ -444,6 +661,7 @@ function LessonsTab() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [suggestedBandwidth, setSuggestedBandwidth] = useState(null)
+  const [diagnosticResult, setDiagnosticResult] = useState(null)
 
   useBandwidthSuggestion(profile || {}, setSuggestedBandwidth)
 
@@ -482,6 +700,10 @@ function LessonsTab() {
   }, [])
 
   useEffect(() => {
+    setDiagnosticResult(null)
+  }, [selectedLessonId])
+
+  useEffect(() => {
     async function loadLesson() {
       if (!selectedLessonId || !profile) return
       setLessonLoading(true)
@@ -492,6 +714,7 @@ function LessonsTab() {
         setError(err.message || 'Could not adapt this lesson.')
       } finally {
         setLessonLoading(false)
+        setDiagnosticResult(null)
       }
     }
 
@@ -530,6 +753,16 @@ function LessonsTab() {
     } finally {
       setSaving(false)
     }
+  }
+
+  function handleDiagnosticComplete(result) {
+    setDiagnosticResult(result)
+    // Update local profile so the lesson reload useEffect fires with the new level
+    setProfile((prev) => prev ? {
+      ...prev,
+      readingLevel: result.newReadingLevel,
+      diagnosticReadingLevel: result.newReadingLevel,
+    } : prev)
   }
 
   if (loading) return <p className="sv-muted">Loading lessons...</p>
@@ -574,11 +807,25 @@ function LessonsTab() {
       </aside>
 
       <main className="student-lesson-panel">
+        {selectedLessonId && (
+          <DiagnosticPanel
+            key={selectedLessonId}
+            lessonId={selectedLessonId}
+            onComplete={handleDiagnosticComplete}
+          />
+        )}
+
         {error && <p style={{ color: '#fca5a5' }}>{error}</p>}
+
         {lessonLoading ? (
-          <p className="sv-muted">Adapting lesson for your profile...</p>
+          <p className="sv-muted">
+            {diagnosticResult ? 'Applying adaptation...' : 'Adapting lesson for your profile...'}
+          </p>
         ) : (
-          <LessonRenderer lesson={adaptedLesson} profile={profile} />
+          <>
+            <AdaptationBanner profile={profile} />
+            <LessonRenderer lesson={adaptedLesson} profile={profile} />
+          </>
         )}
       </main>
     </div>
