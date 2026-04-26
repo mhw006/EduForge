@@ -124,6 +124,15 @@ export async function adaptContent(topic, profile) {
   return handleResponse(response)
 }
 
+// ─── Phase 2: Standards search (RAG corpus) ──────────────────────────────────
+export async function searchStandards(query, limit = 8) {
+  const params = new URLSearchParams()
+  if (query) params.set('q', query)
+  params.set('limit', String(limit))
+  const response = await apiFetch(`/standards/search?${params}`)
+  return handleResponse(response)
+}
+
 // ─── Phase 1: Teacher Feedback Loop ──────────────────────────────────────────
 // Fire-and-forget: failures must never block the teacher's save flow.
 export async function logLessonEdit({ lessonId, level, section, editType, aiVersion, humanVersion = null }) {

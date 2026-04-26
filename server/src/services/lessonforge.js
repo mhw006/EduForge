@@ -1,8 +1,9 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const { normalizeLessonPayload } = require('../lib/lesson-schema');
+const { buildContextBlock } = require('./standards-retrieval');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = 'claude-sonnet-4-5-20250929';
+const MODEL = process.env.LESSONFORGE_MODEL || 'claude-sonnet-4-5-20250929';
 
 function buildSystemPrompt() {
   return `You are an expert curriculum designer and special education specialist.
@@ -20,7 +21,12 @@ CRITICAL OUTPUT RULES:
 }
 
 function buildUserPrompt(standard, gradeLevel, subject) {
-  return `Generate a complete differentiated lesson for:
+  // Phase 2: ground the prompt with retrieved standard text + related standards.
+  // Falls back gracefully to plain prompt if no match in our corpus.
+  const contextBlock = buildContextBlock(standard);
+  const groundingPrefix = contextBlock ? `${contextBlock}\n\n` : '';
+
+  return `${groundingPrefix}Generate a complete differentiated lesson for:
 
 STANDARD: "${standard}"
 GRADE LEVEL: ${gradeLevel}

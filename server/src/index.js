@@ -50,6 +50,7 @@ app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/export', require('./routes/export'));
 app.use('/api/diagnostics', require('./routes/diagnostics'));
 app.use('/api/edits', require('./routes/edits'));
+app.use('/api/standards', require('./routes/standards'));
 
 // ─── 404 handler ─────────────────────────────────────────────────────────────
 app.use((req, res) => {

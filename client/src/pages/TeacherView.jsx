@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import BonfireWidget from '../components/BonfireWidget'
 import DashboardCard from '../components/DashboardCard'
 import TaskChecklist from '../components/TaskChecklist'
-import { adaptContent, getClasses, getDashboardData, getLessonsByClass, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, logLessonEdit, getEditSummary } from '../services/aiClient'
+import { adaptContent, getClasses, getDashboardData, getLessonsByClass, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, logLessonEdit, getEditSummary, searchStandards } from '../services/aiClient'
 
 // ─── Tab IDs ──────────────────────────────────────────────────────────────────
 const TABS = [
@@ -269,6 +269,66 @@ function levelKeyToEnum(key) {
   return { foundational: 'FOUNDATIONAL', gradeLevel: 'GRADE_LEVEL', advanced: 'ADVANCED' }[key] || 'GRADE_LEVEL'
 }
 
+// ─── Phase 2: Curriculum standards autocomplete ──────────────────────────────
+function StandardAutocomplete({ value, onChange }) {
+  const [suggestions, setSuggestions] = useState([])
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!value || value.length < 2) { setSuggestions([]); return }
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchStandards(value, 6)
+        setSuggestions(r.standards || [])
+      } catch { setSuggestions([]) }
+    }, 250) // debounce — don't hammer the API while user types
+    return () => clearTimeout(t)
+  }, [value])
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        name="standard"
+        value={value}
+        onChange={(e) => { onChange(e); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        placeholder="CCSS.MATH.CONTENT.5.NF.B.3 — type a code or keywords"
+        autoComplete="off"
+        required
+      />
+      {open && suggestions.length > 0 && (
+        <div className="bf-card" style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+          marginTop: 4, padding: 0, maxHeight: 240, overflowY: 'auto',
+        }}>
+          {suggestions.map((s) => (
+            <button
+              key={s.code}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onChange({ target: { name: 'standard', value: `${s.code} — ${s.title}` } })
+                setOpen(false)
+              }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                padding: '10px 12px', background: 'transparent',
+                border: 'none', borderBottom: '1px solid var(--line)',
+                color: 'var(--text)', cursor: 'pointer', fontSize: '0.9em',
+              }}
+            >
+              <strong style={{ color: 'var(--accent)' }}>{s.code}</strong>
+              <span style={{ opacity: 0.6, marginLeft: 8 }}>{s.subject} · gr {s.gradeBand}</span>
+              <div style={{ fontSize: '0.85em', opacity: 0.8 }}>{s.title}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function LessonForgeTab() {
   const [form, setForm] = useState({
     title: '', dueDate: '', description: '',
@@ -353,8 +413,7 @@ function LessonForgeTab() {
 
           <label>
             Curriculum standard
-            <input name="standard" value={form.standard} onChange={updateField}
-              placeholder="CCSS.MATH.CONTENT.5.NF.B.3 — Interpret a fraction as division…" required />
+            <StandardAutocomplete value={form.standard} onChange={updateField} />
           </label>
 
           <label>
