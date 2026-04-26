@@ -123,3 +123,40 @@ export async function adaptContent(topic, profile) {
   })
   return handleResponse(response)
 }
+
+// ─── Phase 1: Teacher Feedback Loop ──────────────────────────────────────────
+// Fire-and-forget: failures must never block the teacher's save flow.
+export async function logLessonEdit({ lessonId, level, section, editType, aiVersion, humanVersion = null }) {
+  try {
+    const response = await apiFetch(`/edits/${lessonId}`, {
+      method: 'POST',
+      demoUser: 'teacher',
+      body: { level, section, editType, aiVersion, humanVersion },
+    })
+    if (!response.ok) return null
+    return response.json()
+  } catch {
+    return null
+  }
+}
+
+export async function getEditSummary({ classId, lessonId } = {}) {
+  const params = new URLSearchParams()
+  if (classId) params.set('classId', classId)
+  if (lessonId) params.set('lessonId', lessonId)
+  const response = await apiFetch(`/edits/summary?${params}`, { demoUser: 'teacher' })
+  return handleResponse(response)
+}
+
+// ─── Phase 3: Engagement Telemetry ───────────────────────────────────────────
+// Used by StudentView to log toggle events. Fire-and-forget — student UX never
+// blocks on telemetry.
+export async function logEngagementEvent({ lessonId, eventType, metadata = {} }) {
+  try {
+    await apiFetch('/analytics/event', {
+      method: 'POST',
+      demoUser: 'student',
+      body: { lessonId, eventType, metadata },
+    })
+  } catch { /* ignore */ }
+}

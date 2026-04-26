@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import BonfireWidget from '../components/BonfireWidget'
 import DashboardCard from '../components/DashboardCard'
 import TaskChecklist from '../components/TaskChecklist'
-import { adaptContent, getClasses, getDashboardData, getLessonsByClass, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson } from '../services/aiClient'
+import { adaptContent, getClasses, getDashboardData, getLessonsByClass, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, logLessonEdit, getEditSummary } from '../services/aiClient'
 
 // ─── Tab IDs ──────────────────────────────────────────────────────────────────
 const TABS = [
@@ -169,16 +169,59 @@ const GRADE_MAP = {
   'Grade 1-3': '2', 'Grade 4-5': '4', 'Grade 6-8': '6', 'Grade 9-12': '10', 'Lexile 900+': '12',
 }
 
+// ─── Phase 1: Per-section AcceptButton (telemetry capture) ───────────────────
+const SECTION_LEVEL_KEY = (level, section) => `${level}::${section}`
+
+function AcceptButton({ lessonId, level, section, aiVersion, accepted, onAccept }) {
+  if (!lessonId) return null
+  const key = SECTION_LEVEL_KEY(level, section)
+  const isAccepted = !!accepted[key]
+  return (
+    <button
+      type="button"
+      className={isAccepted ? 'pill active' : 'pill'}
+      style={{ marginLeft: '0.5rem', fontSize: '0.75em', padding: '4px 10px' }}
+      disabled={isAccepted}
+      onClick={async () => {
+        const result = await logLessonEdit({
+          lessonId,
+          level: levelKeyToEnum(level),
+          section,
+          editType: 'ACCEPTED_AS_IS',
+          aiVersion,
+          humanVersion: aiVersion,
+        })
+        if (result) onAccept(key)
+      }}
+      title="Mark this section as accepted as-is (logs telemetry for the data flywheel)"
+    >
+      {isAccepted ? '✓ Accepted' : 'Accept'}
+    </button>
+  )
+}
+
+// LessonForge UI uses lowercase level keys (foundational/gradeLevel/advanced).
+// LessonEdit schema uses enum strings (FOUNDATIONAL/GRADE_LEVEL/ADVANCED).
+function levelKeyToEnum(key) {
+  return { foundational: 'FOUNDATIONAL', gradeLevel: 'GRADE_LEVEL', advanced: 'ADVANCED' }[key] || 'GRADE_LEVEL'
+}
+
 function LessonForgeTab() {
   const [form, setForm] = useState({
     title: '', dueDate: '', description: '',
     standard: '', readingLevel: 'Grade 6-8', subject: 'ELA',
   })
   const [lesson,      setLesson]      = useState(null)
+  const [savedLessonId, setSavedLessonId] = useState(null)
+  const [accepted,    setAccepted]    = useState({}) // { 'foundational::OVERVIEW': true }
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState(null)
   const [saveNotice,  setSaveNotice]  = useState(null)
   const [activeTab,   setActiveTab]   = useState('foundational')
+
+  function markAccepted(key) {
+    setAccepted((prev) => ({ ...prev, [key]: true }))
+  }
 
   function updateField(e) {
     const { name, value } = e.target
@@ -187,7 +230,7 @@ function LessonForgeTab() {
 
   async function submit(e) {
     e.preventDefault()
-    setLoading(true); setError(null); setLesson(null); setSaveNotice(null)
+    setLoading(true); setError(null); setLesson(null); setSaveNotice(null); setAccepted({}); setSavedLessonId(null)
     try {
       const result = await generateLessonPlan({
         standard: form.standard,
@@ -205,6 +248,7 @@ function LessonForgeTab() {
           standard: form.standard,
           lesson: result,
         })
+        setSavedLessonId(saveResult.lesson.id)
         setSaveNotice({ kind: 'success', message: `Saved to PostgreSQL (lesson ID: ${saveResult.lesson.id})` })
       } catch (saveErr) {
         setSaveNotice({ kind: 'error', message: `Generated OK, but save failed: ${saveErr.message || 'Unknown error'}` })
@@ -312,11 +356,21 @@ function LessonForgeTab() {
                 {currentTier.levelLabel}{' '}
                 <small style={{ opacity: 0.6, fontSize: '0.8em' }}>{currentTier.lexileRange}</small>
               </h3>
+
+              <h4 style={{ display: 'flex', alignItems: 'center' }}>
+                Overview
+                <AcceptButton lessonId={savedLessonId} level={activeTab} section="OVERVIEW"
+                  aiVersion={currentTier.overview} accepted={accepted} onAccept={markAccepted} />
+              </h4>
               <p>{currentTier.overview}</p>
 
               {currentTier.keyVocabulary?.length > 0 && (
                 <>
-                  <h4>Key vocabulary</h4>
+                  <h4 style={{ display: 'flex', alignItems: 'center' }}>
+                    Key vocabulary
+                    <AcceptButton lessonId={savedLessonId} level={activeTab} section="KEY_VOCABULARY"
+                      aiVersion={currentTier.keyVocabulary} accepted={accepted} onAccept={markAccepted} />
+                  </h4>
                   <ul className="item-list compact">
                     {currentTier.keyVocabulary.map(v => (
                       <li key={v.term}><strong>{v.term}</strong><small>{v.definition}</small></li>
@@ -325,12 +379,20 @@ function LessonForgeTab() {
                 </>
               )}
 
-              <h4>Lesson content</h4>
+              <h4 style={{ display: 'flex', alignItems: 'center' }}>
+                Lesson content
+                <AcceptButton lessonId={savedLessonId} level={activeTab} section="MAIN_CONTENT"
+                  aiVersion={currentTier.mainContent} accepted={accepted} onAccept={markAccepted} />
+              </h4>
               <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{currentTier.mainContent}</div>
 
               {currentTier.activities?.length > 0 && (
                 <>
-                  <h4>Activities</h4>
+                  <h4 style={{ display: 'flex', alignItems: 'center' }}>
+                    Activities
+                    <AcceptButton lessonId={savedLessonId} level={activeTab} section="ACTIVITIES"
+                      aiVersion={currentTier.activities} accepted={accepted} onAccept={markAccepted} />
+                  </h4>
                   <ul className="item-list compact">
                     {currentTier.activities.map(a => (
                       <li key={a.title}>
@@ -344,7 +406,11 @@ function LessonForgeTab() {
 
               {currentTier.quiz?.length > 0 && (
                 <>
-                  <h4>Quiz + answer key</h4>
+                  <h4 style={{ display: 'flex', alignItems: 'center' }}>
+                    Quiz + answer key
+                    <AcceptButton lessonId={savedLessonId} level={activeTab} section="QUIZ"
+                      aiVersion={currentTier.quiz} accepted={accepted} onAccept={markAccepted} />
+                  </h4>
                   <ol className="item-list compact">
                     {currentTier.quiz.map((q, i) => (
                       <li key={i}>
