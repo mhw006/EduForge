@@ -19,8 +19,14 @@ async function apiFetch(path, { method = 'GET', body, demoUser = 'teacher', head
 
 async function handleResponse(response) {
   if (!response.ok) {
-    const message = await response.text()
-    throw new Error(message || 'Request failed')
+    let message = 'Request failed'
+    try {
+      const body = await response.json()
+      message = body.error || body.message || message
+    } catch {
+      message = (await response.text().catch(() => '')) || message
+    }
+    throw new Error(message)
   }
   return response.json()
 }
