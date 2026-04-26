@@ -87,10 +87,6 @@ export default function Landing() {
           <p>Upload or describe a lesson and get standards-aligned micro steps for delivery.</p>
         </article>
         <article className="bf-card">
-          <h3>Diagnostic Test Builder</h3>
-          <p>Create reading, math, and prerequisite checks to identify student starting levels.</p>
-        </article>
-        <article className="bf-card">
           <h3>Adaptive Learning Modes</h3>
           <p>Generate leveled practice modes for ELL, IEP, and mixed-readiness classrooms.</p>
         </article>

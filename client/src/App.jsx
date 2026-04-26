@@ -1,10 +1,7 @@
-import { Link, NavLink, Route, Routes } from 'react-router-dom'
+import { Link, NavLink, Route, Routes, Navigate } from 'react-router-dom'
 import Landing from './pages/Landing'
-import Dashboard from './pages/Dashboard'
-import AssignmentBreakdown from './pages/AssignmentBreakdown'
-import ExamFocus from './pages/ExamFocus'
-import StudyMode from './pages/StudyMode'
-import BonfireProgress from './pages/BonfireProgress'
+import TeacherView from './pages/TeacherView'
+import StudentView from './pages/StudentView'
 
 export default function App() {
   return (
@@ -15,25 +12,23 @@ export default function App() {
         </Link>
 
         <nav>
-          <NavLink to="/dashboard">Teacher Dashboard</NavLink>
-          <NavLink to="/lesson-planner">Lesson Planner</NavLink>
-          <NavLink to="/diagnostic">Diagnostic</NavLink>
-          <NavLink to="/adapt-studio">Adapt Studio</NavLink>
-          <NavLink to="/progress">Growth Tracker</NavLink>
+          <NavLink to="/teacher">Teacher View</NavLink>
+          <NavLink to="/student">Student View</NavLink>
         </nav>
       </header>
 
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/lesson-planner" element={<AssignmentBreakdown />} />
-        <Route path="/diagnostic" element={<ExamFocus />} />
-        <Route path="/adapt-studio" element={<StudyMode />} />
-        <Route path="/progress" element={<BonfireProgress />} />
+        <Route path="/teacher" element={<TeacherView />} />
+        <Route path="/student" element={<StudentView />} />
 
-        <Route path="/assignment" element={<AssignmentBreakdown />} />
-        <Route path="/exam-focus" element={<ExamFocus />} />
-        <Route path="/study-mode" element={<StudyMode />} />
+        {/* Legacy redirects */}
+        <Route path="/dashboard"    element={<Navigate to="/teacher" replace />} />
+        <Route path="/lesson-planner" element={<Navigate to="/teacher" replace />} />
+        <Route path="/adapt-studio" element={<Navigate to="/teacher" replace />} />
+        <Route path="/progress"     element={<Navigate to="/student" replace />} />
+        <Route path="/assignment"   element={<Navigate to="/teacher" replace />} />
+        <Route path="/study-mode"   element={<Navigate to="/teacher" replace />} />
       </Routes>
     </div>
   )
