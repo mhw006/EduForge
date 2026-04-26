@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import BonfireWidget from '../components/BonfireWidget'
 import DashboardCard from '../components/DashboardCard'
 import TaskChecklist from '../components/TaskChecklist'
-import { adaptContent, getClassAnalytics, getClasses, getDashboardData, getLessonsByClass, getLesson, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, publishLesson, logLessonEdit } from '../services/aiClient'
+import { adaptContent, getClassAnalytics, getClasses, getDashboardData, getLessonsByClass, getLesson, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, publishLesson, unpublishLesson, logLessonEdit } from '../services/aiClient'
 
 // ─── Tab IDs ──────────────────────────────────────────────────────────────────
 const TABS = [
@@ -624,7 +624,7 @@ function LessonForgeTab() {
                   <button type="button" className="bf-btn ghost" onClick={() => openSavedLesson(savedLesson)}>
                     Open
                   </button>
-                  {!savedLesson.publishedAt && (
+                  {!savedLesson.publishedAt ? (
                     <button
                       type="button"
                       className="bf-btn"
@@ -635,6 +635,23 @@ function LessonForgeTab() {
                       }}
                     >
                       Publish
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="bf-btn ghost"
+                      onClick={async () => {
+                        if (!confirm(`Unpublish "${savedLesson.title}"? Students will no longer see this lesson.`)) return
+                        try {
+                          await unpublishLesson(savedLesson.id)
+                          setSaveNotice({ kind: 'success', message: `${savedLesson.title} is now a draft. Students can't see it.` })
+                          setSavedLessons((prev) => prev.map((item) => item.id === savedLesson.id ? { ...item, publishedAt: null } : item))
+                        } catch (err) {
+                          setSaveNotice({ kind: 'error', message: `Could not unpublish: ${err.message}` })
+                        }
+                      }}
+                    >
+                      Unpublish
                     </button>
                   )}
                 </div>

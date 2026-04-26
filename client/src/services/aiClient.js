@@ -157,6 +157,14 @@ export async function publishLesson(lessonId, demoUser = 'teacher') {
   return handleResponse(response)
 }
 
+export async function unpublishLesson(lessonId, demoUser = 'teacher') {
+  const response = await apiFetch(`/lessons/${lessonId}/unpublish`, {
+    method: 'POST',
+    demoUser,
+  })
+  return handleResponse(response)
+}
+
 // ─── EduEquity ───────────────────────────────────────────────────────────────
 
 export async function adaptContent(topic, profile) {
