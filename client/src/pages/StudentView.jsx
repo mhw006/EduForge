@@ -510,6 +510,100 @@ const BANDWIDTH_LABELS = {
   TEXT_ONLY: 'Text Only',
 }
 
+const LESSON_MODES = [
+  { id: 'interactive', label: 'Interactive lesson' },
+  { id: 'flashcards', label: 'Flashcards' },
+  { id: 'cloze', label: 'Fill-in-the-blank' },
+  { id: 'quiz', label: 'Quiz mode' },
+  { id: 'visual', label: 'Visual explanation' },
+  { id: 'practice', label: 'Practice problems' },
+  { id: 'plan', label: 'Daily focus plan' },
+]
+
+function stripHtml(value) {
+  if (!value) return ''
+  const html = String(value).replace(/<\/(p|div|li|h[1-6])>/gi, '</$1>\n')
+  if (typeof document === 'undefined') return html.replace(/<[^>]+>/g, ' ')
+  const el = document.createElement('div')
+  el.innerHTML = html
+  return el.textContent || el.innerText || ''
+}
+
+function getLessonSections(content) {
+  const sections = []
+  if (content?.overview) {
+    sections.push({ title: 'Overview', body: stripHtml(content.overview) })
+  }
+
+  const mainText = stripHtml(content?.mainContent)
+  const paragraphs = mainText
+    .split(/\n{2,}|(?<=[.!?])\s+(?=[A-Z0-9])/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 40)
+
+  if (paragraphs.length > 0) {
+    paragraphs.slice(0, 5).forEach((paragraph, index) => {
+      sections.push({ title: `Section ${index + 1}`, body: paragraph })
+    })
+  } else if (mainText) {
+    sections.push({ title: 'Lesson Content', body: mainText })
+  }
+
+  return sections.length > 0 ? sections : [{ title: 'Lesson', body: 'This lesson is ready for review.' }]
+}
+
+function getVocabulary(content) {
+  return (content?.keyVocabulary || []).filter((item) => item?.term && item?.definition)
+}
+
+function getOptionLetter(option, fallbackIndex) {
+  const match = String(option || '').trim().match(/^([A-D])[\).:-]?\s/i)
+  return match ? match[1].toUpperCase() : String.fromCharCode(65 + fallbackIndex)
+}
+
+function makeClozeItems(content) {
+  const text = stripHtml(content?.mainContent)
+  return getVocabulary(content).slice(0, 6).map((item) => {
+    const escaped = item.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const sentence = (text.match(new RegExp(`[^.!?]*\\b${escaped}\\b[^.!?]*[.!?]`, 'i')) || [text])[0]?.trim()
+    return {
+      term: item.term,
+      prompt: sentence
+        ? sentence.replace(new RegExp(`\\b${escaped}\\b`, 'i'), '__________')
+        : `__________ means ${item.definition}`,
+      hint: item.definition,
+    }
+  })
+}
+
+function makePracticeItems(content) {
+  const vocab = getVocabulary(content)
+  const activities = content?.activities || []
+  const quiz = content?.quiz || []
+  const items = []
+
+  if (vocab[0]) {
+    items.push({
+      prompt: `Explain ${vocab[0].term} in your own words and connect it to the lesson.`,
+      answer: vocab[0].definition,
+    })
+  }
+  if (activities[0]) {
+    items.push({
+      prompt: `Use the lesson to complete this worked example: ${activities[0].title}. What steps would you take first?`,
+      answer: activities[0].instructions,
+    })
+  }
+  if (quiz[0]) {
+    items.push({
+      prompt: `Create a short answer response for this idea: ${quiz[0].question}`,
+      answer: quiz[0].explanation || `Check your response against the lesson's explanation for answer ${quiz[0].correctAnswer}.`,
+    })
+  }
+
+  return items.slice(0, 3)
+}
+
 // ─── DiagnosticPanel ─────────────────────────────────────────────────────────
 // Self-contained component. Reset per lesson via key={lessonId}.
 function DiagnosticPanel({ lessonId, onComplete }) {
@@ -713,7 +807,7 @@ function AdaptationBanner({ profile }) {
   )
 }
 
-function LessonRenderer({ lesson, profile }) {
+function LegacyLessonRenderer({ lesson, profile }) {
   const content = lesson?.content
   const [speaking, setSpeaking] = useState(false)
   const utteranceRef = useRef(null)
@@ -882,6 +976,393 @@ function LessonRenderer({ lesson, profile }) {
           </ol>
         </section>
       )}
+    </article>
+  )
+}
+
+function InteractiveLessonMode({ content }) {
+  const sections = useMemo(() => getLessonSections(content), [content])
+  const [activeSection, setActiveSection] = useState(0)
+  const completedCount = Math.min(activeSection + 1, sections.length)
+  const progress = Math.round((completedCount / sections.length) * 100)
+  const current = sections[activeSection]
+
+  useEffect(() => {
+    setActiveSection(0)
+  }, [content])
+
+  return (
+    <section className="lesson-mode-panel">
+      <div className="lesson-progress-header">
+        <div>
+          <h3>{current.title}</h3>
+          <p className="sv-muted">Section {activeSection + 1} of {sections.length}</p>
+        </div>
+        <strong>{progress}%</strong>
+      </div>
+      <div className="lesson-progress-track" aria-label="Lesson progress">
+        <span style={{ width: `${progress}%` }} />
+      </div>
+      <p className="student-overview">{current.body}</p>
+      <div className="lesson-step-controls">
+        <button className="bf-btn ghost" type="button" onClick={() => setActiveSection((value) => Math.max(0, value - 1))} disabled={activeSection === 0}>
+          Previous
+        </button>
+        <button className="bf-btn" type="button" onClick={() => setActiveSection((value) => Math.min(sections.length - 1, value + 1))} disabled={activeSection === sections.length - 1}>
+          Next section
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function FlashcardsMode({ content }) {
+  const cards = getVocabulary(content)
+  const [flipped, setFlipped] = useState({})
+
+  if (cards.length === 0) return <p className="sv-muted">No vocabulary cards are available for this lesson yet.</p>
+
+  return (
+    <section className="lesson-mode-grid">
+      {cards.map((card) => (
+        <button
+          key={card.term}
+          type="button"
+          className={`flashcard ${flipped[card.term] ? 'flipped' : ''}`}
+          onClick={() => setFlipped((prev) => ({ ...prev, [card.term]: !prev[card.term] }))}
+        >
+          <span>{flipped[card.term] ? card.definition : card.term}</span>
+          <small>{flipped[card.term] ? 'Definition' : 'Tap to flip'}</small>
+        </button>
+      ))}
+    </section>
+  )
+}
+
+function ClozeMode({ content }) {
+  const items = useMemo(() => makeClozeItems(content), [content])
+  const [answers, setAnswers] = useState({})
+  const [checked, setChecked] = useState(false)
+
+  useEffect(() => {
+    setAnswers({})
+    setChecked(false)
+  }, [content])
+
+  if (items.length === 0) return <p className="sv-muted">Add vocabulary to this lesson to unlock fill-in-the-blank practice.</p>
+
+  return (
+    <section className="lesson-mode-panel">
+      <ol className="cloze-list">
+        {items.map((item, index) => {
+          const response = answers[index] || ''
+          const correct = response.trim().toLowerCase() === item.term.toLowerCase()
+          return (
+            <li key={`${item.term}-${index}`}>
+              <p>{item.prompt}</p>
+              <input
+                type="text"
+                value={response}
+                placeholder="Type the missing term"
+                onChange={(e) => setAnswers((prev) => ({ ...prev, [index]: e.target.value }))}
+              />
+              {checked && (
+                <small className={correct ? 'answer-correct' : 'answer-review'}>
+                  {correct ? 'Correct' : `Review: ${item.term} - ${item.hint}`}
+                </small>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+      <button className="bf-btn" type="button" onClick={() => setChecked(true)}>Check answers</button>
+    </section>
+  )
+}
+
+function QuizMode({ content }) {
+  const [answers, setAnswers] = useState({})
+  const [submitted, setSubmitted] = useState(false)
+  const quiz = content?.quiz || []
+
+  useEffect(() => {
+    setAnswers({})
+    setSubmitted(false)
+  }, [content])
+
+  if (quiz.length === 0) return <p className="sv-muted">No quiz questions are available for this lesson yet.</p>
+
+  const score = quiz.reduce((total, item, index) => total + (answers[index] === item.correctAnswer ? 1 : 0), 0)
+
+  return (
+    <section className="lesson-mode-panel">
+      <ol className="student-quiz interactive">
+        {quiz.map((item, index) => (
+          <li key={`${item.question}-${index}`}>
+            <strong>{item.question}</strong>
+            <div className="quiz-option-grid">
+              {(item.options || []).map((option, optionIndex) => {
+                const letter = getOptionLetter(option, optionIndex)
+                const selected = answers[index] === letter
+                const correct = submitted && item.correctAnswer === letter
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    className={`quiz-option ${selected ? 'selected' : ''} ${correct ? 'correct' : ''}`}
+                    onClick={() => setAnswers((prev) => ({ ...prev, [index]: letter }))}
+                  >
+                    {option}
+                  </button>
+                )
+              })}
+            </div>
+            {submitted && (
+              <small className={answers[index] === item.correctAnswer ? 'answer-correct' : 'answer-review'}>
+                {answers[index] === item.correctAnswer ? 'Correct.' : `Correct answer: ${item.correctAnswer}.`} {item.explanation}
+              </small>
+            )}
+          </li>
+        ))}
+      </ol>
+      <div className="lesson-step-controls">
+        <button className="bf-btn" type="button" onClick={() => setSubmitted(true)}>Submit quiz</button>
+        {submitted && <strong>{score} / {quiz.length} correct</strong>}
+      </div>
+    </section>
+  )
+}
+
+function VisualExplanationMode({ content }) {
+  const vocab = getVocabulary(content).slice(0, 4)
+  const activities = content?.activities || []
+
+  return (
+    <section className="visual-map">
+      <div className="visual-node primary">
+        <span>Main idea</span>
+        <strong>{content?.overview ? stripHtml(content.overview) : content?.levelLabel || 'Lesson focus'}</strong>
+      </div>
+      <div className="visual-branches">
+        {vocab.map((item) => (
+          <div key={item.term} className="visual-node">
+            <span>{item.term}</span>
+            <p>{item.definition}</p>
+          </div>
+        ))}
+      </div>
+      {activities.length > 0 && (
+        <div className="visual-steps">
+          {activities.slice(0, 3).map((activity, index) => (
+            <div key={activity.title} className="visual-step">
+              <strong>{index + 1}</strong>
+              <span>{activity.title}</span>
+              <p>{activity.instructions}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function PracticeProblemsMode({ content }) {
+  const problems = makePracticeItems(content)
+  const [revealed, setRevealed] = useState({})
+
+  if (problems.length === 0) return <p className="sv-muted">Practice problems will appear when the lesson has vocabulary, activities, or quiz explanations.</p>
+
+  return (
+    <section className="lesson-mode-panel">
+      <ol className="practice-list">
+        {problems.map((problem, index) => (
+          <li key={`${problem.prompt}-${index}`}>
+            <strong>{problem.prompt}</strong>
+            <button className="bf-btn ghost small" type="button" onClick={() => setRevealed((prev) => ({ ...prev, [index]: !prev[index] }))}>
+              {revealed[index] ? 'Hide answer' : 'Reveal answer'}
+            </button>
+            {revealed[index] && <p>{problem.answer}</p>}
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+function DailyFocusPlanMode({ content }) {
+  const firstTerm = getVocabulary(content)[0]
+  const firstActivity = content?.activities?.[0]
+  const firstQuiz = content?.quiz?.[0]
+
+  return (
+    <section className="focus-plan">
+      <div>
+        <span>Read</span>
+        <p>{content?.overview ? stripHtml(content.overview) : 'Review the lesson overview and first section.'}</p>
+      </div>
+      <div>
+        <span>Practice</span>
+        <p>{firstActivity ? `${firstActivity.title}: ${firstActivity.instructions}` : firstTerm ? `Explain ${firstTerm.term} and use it in an example.` : 'Write a three-sentence summary of the lesson.'}</p>
+      </div>
+      <div>
+        <span>Quiz yourself</span>
+        <p>{firstQuiz ? firstQuiz.question : firstTerm ? `What does ${firstTerm.term} mean?` : 'Name the most important idea from the lesson.'}</p>
+      </div>
+    </section>
+  )
+}
+
+function LessonRenderer({ lesson, profile }) {
+  const content = lesson?.content
+  const [speaking, setSpeaking] = useState(false)
+  const [activeMode, setActiveMode] = useState('interactive')
+  const utteranceRef = useRef(null)
+  const speechQueueRef = useRef([])
+  const speechCancelledRef = useRef(false)
+
+  useEffect(() => {
+    setActiveMode('interactive')
+  }, [lesson?.id])
+
+  useEffect(() => {
+    return () => {
+      speechCancelledRef.current = true
+      // Only cancel if actually speaking - calling cancel() on an idle
+      // synthesis leaves Chrome in a broken state that silently drops the
+      // next speak() call.
+      if (window.speechSynthesis?.speaking || window.speechSynthesis?.pending) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [])
+
+  if (!content) {
+    return <p className="sv-muted">Choose a lesson to see the adapted student version.</p>
+  }
+
+  const requestedLanguage = getLanguageLabel(profile.language)
+  const translationStatusLabel = content._translationFailed
+    ? `Translation unavailable: ${requestedLanguage}`
+    : content._translated
+      ? `Translated: ${getLanguageLabel(content._targetLang)}`
+      : 'Original English'
+  const articleClass = [
+    'student-lesson-article',
+    getFontClass(profile.fontSize),
+    profile.highContrast ? 'student-high-contrast' : '',
+    profile.dyslexiaFont ? 'student-dyslexia' : '',
+  ].filter(Boolean).join(' ')
+
+  function speak() {
+    if (!content.mainContent || !window.speechSynthesis) return
+
+    // If translation failed the content is still English; use English voice.
+    const effectiveLang = content._translationFailed ? 'en' : profile.language
+    const raw = `${decodeHtml(content.overview)}\n\n${decodeHtml(content.mainContent)}`
+    const chunks = chunkTextForSpeech(raw)
+    if (chunks.length === 0) return
+
+    const voice = findVoiceForLanguage(effectiveLang)
+    const targetLang = getTtsLanguage(effectiveLang)
+
+    const speakNext = () => {
+      if (speechCancelledRef.current) return
+
+      const nextText = speechQueueRef.current.shift()
+      if (!nextText) {
+        setSpeaking(false)
+        utteranceRef.current = null
+        return
+      }
+
+      const utterance = new SpeechSynthesisUtterance(nextText)
+      if (voice) {
+        utterance.voice = voice
+        utterance.lang = voice.lang
+      } else {
+        utterance.lang = targetLang
+      }
+
+      utterance.onend = speakNext
+      utterance.onerror = () => {
+        setSpeaking(false)
+        utteranceRef.current = null
+      }
+      utteranceRef.current = utterance
+      window.speechSynthesis.speak(utterance)
+    }
+
+    speechCancelledRef.current = false
+    speechQueueRef.current = chunks
+    window.speechSynthesis.cancel()
+    setSpeaking(true)
+    setTimeout(speakNext, 50)
+  }
+
+  function stopSpeaking() {
+    speechCancelledRef.current = true
+    speechQueueRef.current = []
+    window.speechSynthesis.cancel()
+    utteranceRef.current = null
+    setSpeaking(false)
+  }
+
+  function renderMode() {
+    switch (activeMode) {
+      case 'flashcards': return <FlashcardsMode content={content} />
+      case 'cloze': return <ClozeMode content={content} />
+      case 'quiz': return <QuizMode content={content} />
+      case 'visual': return <VisualExplanationMode content={content} />
+      case 'practice': return <PracticeProblemsMode content={content} />
+      case 'plan': return <DailyFocusPlanMode content={content} />
+      default: return <InteractiveLessonMode content={content} />
+    }
+  }
+
+  return (
+    <article className={articleClass}>
+      <div className="student-status-row">
+        <span>{lesson.title}</span>
+        {lesson.appliedProfile?.readingLevel && (
+          <span>Adapted - {formatReadingLevel(lesson.appliedProfile.readingLevel)}</span>
+        )}
+        {lesson.appliedProfile?.diagnosticReadingLevel && lesson.appliedProfile.readingLevel === lesson.appliedProfile.diagnosticReadingLevel && (
+          <span>Diagnostic-updated reading level</span>
+        )}
+        <span>{translationStatusLabel}</span>
+        {content._textOnly && <span>Text-only mode</span>}
+        {content._translationFailed && <span>Showing original (translation unavailable)</span>}
+      </div>
+
+      {profile.ttsEnabled && (
+        <button className="bf-btn" type="button" onClick={speaking ? stopSpeaking : speak}>
+          {speaking ? 'Stop reading' : 'Read aloud'}
+        </button>
+      )}
+
+      <div>
+        <h2>{content.levelLabel || lesson.title}</h2>
+        {content.lexileRange && <p className="sv-muted">{content.lexileRange}</p>}
+      </div>
+
+      <div className="lesson-mode-tabs" role="tablist" aria-label="Lesson learning modes">
+        {LESSON_MODES.map((mode) => (
+          <button
+            key={mode.id}
+            type="button"
+            role="tab"
+            aria-selected={activeMode === mode.id}
+            className={`pill ${activeMode === mode.id ? 'active' : ''}`}
+            onClick={() => setActiveMode(mode.id)}
+          >
+            {mode.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="lesson-mode-content">
+        {renderMode()}
+      </div>
     </article>
   )
 }
