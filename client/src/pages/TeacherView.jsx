@@ -2,17 +2,17 @@ import { useEffect, useMemo, useState } from 'react'
 import BonfireWidget from '../components/BonfireWidget'
 import DashboardCard from '../components/DashboardCard'
 import TaskChecklist from '../components/TaskChecklist'
-import { adaptContent, getClassAnalytics, getClasses, getDashboardData, getLessonsByClass, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, logLessonEdit, getEditSummary, searchStandards } from '../services/aiClient'
+import { adaptContent, getClassAnalytics, getClasses, getDashboardData, getLessonsByClass, recommendNextFocusTask, generateLessonPlan, saveGeneratedLesson, publishLesson, logLessonEdit } from '../services/aiClient'
 
 // ─── Tab IDs ──────────────────────────────────────────────────────────────────
 const TABS = [
   { id: 'dashboard',   icon: '📊', label: 'Dashboard'    },
   { id: 'lessonforge', icon: '🧠', label: 'LessonForge'  },
-  { id: 'adapt',       icon: '🎯', label: 'Adapt Studio' },
+  { id: 'adapt',       icon: '⚒️', label: 'The Anvil' },
 ]
 
 function summarizeStandard(standard) {
-  if (!standard) return 'Standard ready for live differentiation'
+  if (!standard) return 'Learning goal ready for live differentiation'
   return standard.length > 110 ? `${standard.slice(0, 107)}...` : standard
 }
 
@@ -146,52 +146,6 @@ function RecommendedActionsCard({ analytics, recommendation }) {
   )
 }
 
-// ─── Phase 1+3: Data Flywheel widget — AI vs Final teacher edits ─────────────
-function EditFlywheelWidget({ summary, loading }) {
-  if (loading) return <p className="sv-muted">Loading edit metrics…</p>
-  if (!summary || summary.totalEdits === 0) {
-    return (
-      <p className="sv-muted">
-        No edit telemetry yet. Open LessonForge, generate a lesson, and click <strong>Accept</strong>
-        on any section to start populating the flywheel.
-      </p>
-    )
-  }
-
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.75rem' }}>
-        <div>
-          <small className="sv-muted">Total edits</small>
-          <h3 style={{ margin: 0 }}>{summary.totalEdits}</h3>
-        </div>
-        <div>
-          <small className="sv-muted">Acceptance rate</small>
-          <h3 style={{ margin: 0, color: summary.acceptanceRate > 0.7 ? '#4ade80' : '#facc15' }}>
-            {Math.round(summary.acceptanceRate * 100)}%
-          </h3>
-        </div>
-        <div>
-          <small className="sv-muted">Avg edit size</small>
-          <h3 style={{ margin: 0 }}>{summary.avgCharDelta} chars</h3>
-        </div>
-      </div>
-      {summary.bySection.length > 0 && (
-        <ul className="item-list compact" style={{ marginTop: '0.5rem' }}>
-          {summary.bySection.slice(0, 5).map((s) => (
-            <li key={s.section}>
-              <strong>{s.section.replace('_', ' ').toLowerCase()}</strong>
-              <small>
-                {s.accepted_as_is || 0} accepted · {s.modified || 0} edited · {s.regenerated || 0} regenerated
-              </small>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
-}
-
 function DashboardTab({ onNavigate }) {
   const [data,            setData]            = useState(null)
   const [recommendation,  setRecommendation]  = useState(null)
@@ -199,8 +153,6 @@ function DashboardTab({ onNavigate }) {
   const [classes,         setClasses]         = useState([])
   const [primaryClassId,  setPrimaryClassId]  = useState(null)
   const [classAnalytics,  setClassAnalytics]  = useState(null)
-  const [editSummary,     setEditSummary]     = useState(null)
-  const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [loading,         setLoading]         = useState(true)
 
   useEffect(() => {
@@ -253,23 +205,13 @@ function DashboardTab({ onNavigate }) {
 
     let cancelled = false
     async function loadClassIntelligence() {
-      setAnalyticsLoading(true)
       try {
-        const [analyticsResult, editResult] = await Promise.all([
-          getClassAnalytics(primaryClassId),
-          getEditSummary({ classId: primaryClassId }),
-        ])
+        const analyticsResult = await getClassAnalytics(primaryClassId)
         if (!cancelled) {
           setClassAnalytics(analyticsResult)
-          setEditSummary(editResult)
         }
       } catch {
-        if (!cancelled) {
-          setClassAnalytics(null)
-          setEditSummary(null)
-        }
-      } finally {
-        if (!cancelled) setAnalyticsLoading(false)
+        if (!cancelled) setClassAnalytics(null)
       }
     }
 
@@ -296,10 +238,10 @@ function DashboardTab({ onNavigate }) {
     <div>
       <div className="header-actions" style={{ marginBottom: '1.25rem' }}>
         <button className="bf-btn" type="button" onClick={() => onNavigate('lessonforge')}>
-          + New Lesson Plan
+          + Forge Lesson
         </button>
         <button className="bf-btn ghost" type="button" onClick={() => onNavigate('adapt')}>
-          Open Adapt Studio
+          Open The Anvil
         </button>
       </div>
 
@@ -331,7 +273,7 @@ function DashboardTab({ onNavigate }) {
       </section>
 
       <section className="dashboard-grid">
-        <DashboardCard title="Closed-Loop Overview">
+        <DashboardCard title="Classroom Snapshot">
           <ClosedLoopOverviewCard analytics={classAnalytics} />
         </DashboardCard>
 
@@ -367,7 +309,7 @@ function DashboardTab({ onNavigate }) {
             ) : (
               <li>
                 <strong>No saved lessons yet</strong>
-                <span>Generate in LessonForge to create a stored draft, then publish when you're ready.</span>
+                <span>Forge in LessonForge to create a stored draft, then publish when you're ready.</span>
                 <small>Drafts and published lessons will both appear here</small>
               </li>
             )}
@@ -384,9 +326,6 @@ function DashboardTab({ onNavigate }) {
           />
         </DashboardCard>
 
-        <DashboardCard title="AI vs Final Edits (Data Flywheel)">
-          <EditFlywheelWidget summary={editSummary} loading={analyticsLoading} />
-        </DashboardCard>
       </section>
     </div>
   )
@@ -434,78 +373,38 @@ function levelKeyToEnum(key) {
   return { foundational: 'FOUNDATIONAL', gradeLevel: 'GRADE_LEVEL', advanced: 'ADVANCED' }[key] || 'GRADE_LEVEL'
 }
 
-// ─── Phase 2: Curriculum standards autocomplete ──────────────────────────────
-function StandardAutocomplete({ value, onChange }) {
-  const [suggestions, setSuggestions] = useState([])
-  const [open, setOpen] = useState(false)
-
-  useEffect(() => {
-    if (!value || value.length < 2) { setSuggestions([]); return }
-    const t = setTimeout(async () => {
-      try {
-        const r = await searchStandards(value, 6)
-        setSuggestions(r.standards || [])
-      } catch { setSuggestions([]) }
-    }, 250) // debounce — don't hammer the API while user types
-    return () => clearTimeout(t)
-  }, [value])
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <input
-        name="standard"
-        value={value}
-        onChange={(e) => { onChange(e); setOpen(true) }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 200)}
-        placeholder="CCSS.MATH.CONTENT.5.NF.B.3 — type a code or keywords"
-        autoComplete="off"
-        required
-      />
-      {open && suggestions.length > 0 && (
-        <div className="bf-card" style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
-          marginTop: 4, padding: 0, maxHeight: 240, overflowY: 'auto',
-        }}>
-          {suggestions.map((s) => (
-            <button
-              key={s.code}
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                onChange({ target: { name: 'standard', value: `${s.code} — ${s.title}` } })
-                setOpen(false)
-              }}
-              style={{
-                display: 'block', width: '100%', textAlign: 'left',
-                padding: '10px 12px', background: 'transparent',
-                border: 'none', borderBottom: '1px solid var(--line)',
-                color: 'var(--text)', cursor: 'pointer', fontSize: '0.9em',
-              }}
-            >
-              <strong style={{ color: 'var(--accent)' }}>{s.code}</strong>
-              <span style={{ opacity: 0.6, marginLeft: 8 }}>{s.subject} · gr {s.gradeBand}</span>
-              <div style={{ fontSize: '0.85em', opacity: 0.8 }}>{s.title}</div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function LessonForgeTab() {
   const [form, setForm] = useState({
     title: '', dueDate: '', description: '',
     standard: '', readingLevel: 'Grade 6-8', subject: 'ELA',
   })
+  const [classes, setClasses] = useState([])
+  const [selectedClassId, setSelectedClassId] = useState('')
   const [lesson,      setLesson]      = useState(null)
   const [savedLessonId, setSavedLessonId] = useState(null)
+  const [publishedLesson, setPublishedLesson] = useState(false)
   const [accepted,    setAccepted]    = useState({}) // { 'foundational::OVERVIEW': true }
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState(null)
   const [saveNotice,  setSaveNotice]  = useState(null)
   const [activeTab,   setActiveTab]   = useState('foundational')
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadClasses() {
+      try {
+        const result = await getClasses()
+        if (cancelled) return
+        const availableClasses = (result.classes || []).filter((cls) => cls.name !== 'LessonForge Drafts')
+        setClasses(availableClasses)
+        setSelectedClassId(availableClasses[0]?.id || '')
+      } catch {
+        if (!cancelled) setClasses([])
+      }
+    }
+    loadClasses()
+    return () => { cancelled = true }
+  }, [])
 
   function markAccepted(key) {
     setAccepted((prev) => ({ ...prev, [key]: true }))
@@ -518,7 +417,7 @@ function LessonForgeTab() {
 
   async function submit(e) {
     e.preventDefault()
-    setLoading(true); setError(null); setLesson(null); setSaveNotice(null); setAccepted({}); setSavedLessonId(null)
+    setLoading(true); setError(null); setLesson(null); setSaveNotice(null); setAccepted({}); setSavedLessonId(null); setPublishedLesson(false)
     try {
       const result = await generateLessonPlan({
         standard: form.standard,
@@ -531,7 +430,8 @@ function LessonForgeTab() {
 
       try {
         const saveResult = await saveGeneratedLesson({
-          className: 'LessonForge Drafts',
+          classId: selectedClassId || undefined,
+          className: classes.find((cls) => cls.id === selectedClassId)?.name || 'LessonForge Drafts',
           title: form.title,
           standard: form.standard,
           lesson: result,
@@ -539,14 +439,30 @@ function LessonForgeTab() {
         setSavedLessonId(saveResult.lesson.id)
         setSaveNotice({
           kind: 'success',
-          message: `Saved as a draft in LessonForge Drafts (lesson ID: ${saveResult.lesson.id})`,
+          message: selectedClassId
+            ? `Saved as a draft in ${classes.find((cls) => cls.id === selectedClassId)?.name || 'your class'} (lesson ID: ${saveResult.lesson.id})`
+            : `Saved as a draft in LessonForge Drafts (lesson ID: ${saveResult.lesson.id})`,
         })
       } catch (saveErr) {
-        setSaveNotice({ kind: 'error', message: `Generated OK, but save failed: ${saveErr.message || 'Unknown error'}` })
+        setSaveNotice({ kind: 'error', message: `Forged successfully, but save failed: ${saveErr.message || 'Unknown error'}` })
       }
     } catch (err) {
-      setError(err.message || 'Generation failed. Check your connection and try again.')
+      setError(err.message || 'Forging failed. Check your connection and try again.')
     } finally { setLoading(false) }
+  }
+
+  async function handlePublishLesson() {
+    if (!savedLessonId) return
+    try {
+      await publishLesson(savedLessonId)
+      setPublishedLesson(true)
+      setSaveNotice({
+        kind: 'success',
+        message: `Published and ready for students in ${classes.find((cls) => cls.id === selectedClassId)?.name || 'this class'}.`,
+      })
+    } catch (err) {
+      setSaveNotice({ kind: 'error', message: `Draft saved, but publish failed: ${err.message || 'Unknown error'}` })
+    }
   }
 
   const tabs = [
@@ -560,7 +476,7 @@ function LessonForgeTab() {
   return (
     <div>
       <p className="sv-muted" style={{ marginBottom: '1.25rem' }}>
-        Paste a standard to create a differentiated 3-tier lesson with activities, quiz checks, and vocabulary supports.
+        Drop in a learning goal or topic and EduForge will forge a differentiated 3-tier lesson with activities, quiz checks, and vocabulary supports.
       </p>
 
       <section className="bf-card">
@@ -580,8 +496,14 @@ function LessonForgeTab() {
           </label>
 
           <label>
-            Curriculum standard
-            <StandardAutocomplete value={form.standard} onChange={updateField} />
+            Learning goal or topic
+            <input
+              name="standard"
+              value={form.standard}
+              onChange={updateField}
+              placeholder="Example: Compare fractions with unlike denominators using visual models"
+              required
+            />
           </label>
 
           <label>
@@ -592,6 +514,19 @@ function LessonForgeTab() {
             </select>
           </label>
 
+          <label>
+            Publish to class
+            <select value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)}>
+              {classes.length === 0 ? (
+                <option value="">Save to LessonForge Drafts</option>
+              ) : (
+                classes.map((cls) => (
+                  <option key={cls.id} value={cls.id}>{cls.name}</option>
+                ))
+              )}
+            </select>
+          </label>
+
           <label className="full-width">
             Teacher notes (optional)
             <textarea name="description" value={form.description} onChange={updateField}
@@ -599,7 +534,7 @@ function LessonForgeTab() {
           </label>
 
           <button className="bf-btn" type="submit" disabled={loading}>
-            {loading ? 'Generating lesson…' : 'Generate Differentiated Lesson'}
+            {loading ? 'Forging lesson…' : 'Forge Differentiated Lesson'}
           </button>
         </form>
 
@@ -622,6 +557,11 @@ function LessonForgeTab() {
                 </p>
               </div>
               <div className="hero-cta-row">
+                {savedLessonId && (
+                  <button type="button" className="bf-btn" onClick={handlePublishLesson} disabled={publishedLesson}>
+                    {publishedLesson ? 'Published' : 'Publish for Students'}
+                  </button>
+                )}
                 <button type="button" className="bf-btn ghost" onClick={() => window.print()}>Export PDF</button>
               </div>
             </div>
@@ -763,7 +703,7 @@ function AdaptTab() {
   return (
     <div>
       <p className="sv-muted" style={{ marginBottom: '1.25rem' }}>
-        Adapt any content to a learner profile in real time — language, reading level, accessibility — no separate version management needed.
+        Temper any content to a learner profile in real time — language, reading level, accessibility — no separate version management needed.
       </p>
 
       <section className="bf-card">
@@ -810,7 +750,7 @@ function AdaptTab() {
             required
           />
           <button className="bf-btn" type="submit" disabled={loading}>
-            {loading ? 'Adapting content…' : 'Adapt Content'}
+            {loading ? 'Tempering content…' : 'Temper Content'}
           </button>
         </form>
         {error && <p style={{ color: '#f87171', marginTop: '0.75rem' }}>{error}</p>}
