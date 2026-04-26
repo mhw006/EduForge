@@ -222,7 +222,9 @@ function LessonRenderer({ lesson, profile }) {
     <article className={articleClass}>
       <div className="student-status-row">
         <span>{lesson.title}</span>
-        <span>{lesson.level}</span>
+        {lesson.appliedProfile?.readingLevel && (
+          <span>{{FOUNDATIONAL:'Foundational',GRADE_LEVEL:'Grade Level',ADVANCED:'Advanced'}[lesson.appliedProfile.readingLevel] || lesson.appliedProfile.readingLevel}</span>
+        )}
         <span>{translationStatusLabel}</span>
         {content._textOnly && <span>Text-only mode</span>}
         {content._translationFailed && <span>Showing original lesson</span>}
