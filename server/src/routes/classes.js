@@ -1,6 +1,7 @@
 const express = require('express');
 const prisma = require('../lib/prisma');
 const { protect, requireTeacher, requireStudent } = require('../middleware/auth');
+const demoStore = require('../services/demo-store');
 const router = express.Router();
 
 // ─── POST /api/classes ───────────────────────────────────────────────────────
@@ -15,6 +16,16 @@ router.post('/', protect, requireTeacher, async (req, res) => {
 
     if (name.length > 100) {
       return res.status(400).json({ error: 'Class name must be under 100 characters' });
+    }
+
+    if (demoStore.isDemoStoreEnabled()) {
+      const newClass = demoStore.createClass({ name, teacherId: req.auth.userId });
+      return res.status(201).json({
+        id: newClass.id,
+        name: newClass.name,
+        joinCode: newClass.joinCode,
+        createdAt: newClass.createdAt,
+      });
     }
 
     const newClass = await prisma.class.create({
@@ -43,6 +54,17 @@ router.post('/join', protect, requireStudent, async (req, res) => {
 
     if (!joinCode) {
       return res.status(400).json({ error: 'joinCode is required' });
+    }
+
+    if (demoStore.isDemoStoreEnabled()) {
+      const result = demoStore.joinClass({ joinCode, userId: req.auth.userId });
+      if (!result) return res.status(404).json({ error: 'Invalid class code' });
+      return res.status(result.alreadyEnrolled ? 200 : 201).json({
+        classId: result.classRecord.id,
+        className: result.classRecord.name,
+        joinedAt: result.enrollment.joinedAt,
+        alreadyEnrolled: result.alreadyEnrolled,
+      });
     }
 
     const classRecord = await prisma.class.findUnique({
@@ -94,6 +116,13 @@ router.post('/join', protect, requireStudent, async (req, res) => {
 router.get('/', protect, async (req, res) => {
   try {
     const userId = req.auth.userId;
+
+    if (demoStore.isDemoStoreEnabled()) {
+      const classes = req.user?.role === 'STUDENT'
+        ? demoStore.listStudentClasses(userId)
+        : demoStore.listTeacherClasses(userId);
+      return res.json({ classes });
+    }
 
     // Get user role
     const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -157,6 +186,12 @@ router.get('/', protect, async (req, res) => {
 router.delete('/:id/leave', protect, async (req, res) => {
   try {
     const userId = req.auth.userId;
+    if (demoStore.isDemoStoreEnabled()) {
+      const left = demoStore.leaveClass({ classId: req.params.id, userId });
+      if (!left) return res.status(404).json({ error: 'You are not enrolled in this class' });
+      return res.json({ left: true, classId: req.params.id });
+    }
+
     const deleted = await prisma.enrollment.deleteMany({
       where: { userId, classId: req.params.id },
     });
@@ -174,6 +209,12 @@ router.delete('/:id/leave', protect, async (req, res) => {
 router.get('/:id/students', protect, requireTeacher, async (req, res) => {
   try {
     const teacherId = req.auth.userId;
+    if (demoStore.isDemoStoreEnabled()) {
+      const roster = demoStore.getRoster({ classId: req.params.id, teacherId });
+      if (!roster) return res.status(404).json({ error: 'Class not found or not yours' });
+      return res.json(roster);
+    }
+
     const cls = await prisma.class.findFirst({
       where: { id: req.params.id, teacherId },
     });
@@ -206,6 +247,22 @@ router.get('/:id/students', protect, requireTeacher, async (req, res) => {
 router.delete('/:id', protect, requireTeacher, async (req, res) => {
   try {
     const teacherId = req.auth.userId;
+    if (demoStore.isDemoStoreEnabled()) {
+      const result = demoStore.deleteClass({
+        classId: req.params.id,
+        teacherId,
+        force: req.query.force === 'true',
+      });
+      if (result.status === 'missing') return res.status(404).json({ error: 'Class not found or not yours' });
+      if (result.status === 'blocked') {
+        return res.status(409).json({
+          error: `Class has ${result.lessonCount} lesson(s). Pass ?force=true to delete anyway (lessons will also be removed).`,
+          lessonCount: result.lessonCount,
+        });
+      }
+      return res.json({ deleted: true, classId: result.classId });
+    }
+
     const cls = await prisma.class.findFirst({
       where: { id: req.params.id, teacherId },
       include: { _count: { select: { lessons: true } } },

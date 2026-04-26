@@ -1,6 +1,7 @@
 const express = require('express');
 const prisma = require('../lib/prisma');
 const { protect } = require('../middleware/auth');
+const demoStore = require('../services/demo-store');
 const router = express.Router();
 
 // Valid enum values for server-side validation
@@ -16,6 +17,10 @@ const VALID_CONTENT_FORMATS = ['MIXED_MEDIA', 'TEXT_FOCUSED', 'AUDIO_FOCUSED'];
 router.get('/', protect, async (req, res) => {
   try {
     const userId = req.auth.userId;
+
+    if (demoStore.isDemoStoreEnabled()) {
+      return res.json({ profile: demoStore.getProfile(userId) });
+    }
 
     let profile = await prisma.learnerProfile.findUnique({
       where: { userId },
@@ -126,6 +131,10 @@ router.put('/', protect, async (req, res) => {
     if (recommendedProfilePatch !== undefined) updateData.recommendedProfilePatch = recommendedProfilePatch;
     if (ttsEnabled !== undefined) updateData.ttsEnabled = Boolean(ttsEnabled);
     if (ttsProvider !== undefined) updateData.ttsProvider = ttsProvider;
+
+    if (demoStore.isDemoStoreEnabled()) {
+      return res.json({ profile: demoStore.updateProfile(userId, updateData) });
+    }
 
     // Upsert — create if doesn't exist, update if it does
     const profile = await prisma.learnerProfile.upsert({

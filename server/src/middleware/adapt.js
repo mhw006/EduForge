@@ -1,8 +1,11 @@
 const { buildAuthorizedAdaptedLesson } = require('../services/adaptation');
 const { isHttpError } = require('../lib/http-error');
+const demoStore = require('../services/demo-store');
 
 async function adaptContent(req, res, next) {
   try {
+    if (demoStore.isDemoStoreEnabled()) return next();
+
     const userId = req.auth?.userId || req.user?.id;
     if (!userId) return next();
 

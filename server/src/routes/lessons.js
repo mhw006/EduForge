@@ -6,7 +6,14 @@ const { generateLessonStream } = require('../services/lessonforge');
 const { assertLessonAccess } = require('../lib/lesson-access');
 const { isHttpError } = require('../lib/http-error');
 const { normalizeLessonPayload } = require('../lib/lesson-schema');
+const demoStore = require('../services/demo-store');
 const router = express.Router();
+
+const LEVEL_MAP = {
+  FOUNDATIONAL: 'foundational',
+  GRADE_LEVEL: 'gradeLevel',
+  ADVANCED: 'advanced',
+};
 
 // ─── POST /api/lessons — Create lesson record, return ID ─────────────────────
 router.post('/', requireTeacher, async (req, res) => {
@@ -18,6 +25,66 @@ router.post('/', requireTeacher, async (req, res) => {
 
   if (standard.length > 2000) {
     return res.status(400).json({ error: 'Standard text must be under 2000 characters' });
+  }
+
+  if (demoStore.isDemoStoreEnabled()) {
+    const lesson = demoStore.saveLesson({
+      classId,
+      title: `Lesson: ${standard.substring(0, 60)}`,
+      standard,
+      teacherId: req.auth?.userId || req.user?.id,
+      lesson: {
+        title: `Lesson: ${standard.substring(0, 60)}`,
+        subject,
+        targetGrade: gradeLevel,
+        standard,
+        estimatedMinutes: 30,
+        foundational: {
+          levelLabel: 'Foundational',
+          lexileRange: '400L-600L',
+          overview: standard,
+          keyVocabulary: [{ term: 'Goal', definition: 'What you will learn.' }],
+          mainContent: standard,
+          activities: [{ title: 'Quick Start', instructions: 'Read the goal and underline key ideas.', estimatedMinutes: 5 }],
+          quiz: Array.from({ length: 5 }, (_, index) => ({
+            question: `Check ${index + 1}: What is this lesson about?`,
+            options: ['A) The learning goal', 'B) A random topic', 'C) A game only', 'D) None'],
+            correctAnswer: 'A',
+            explanation: 'The lesson focuses on the learning goal.',
+          })),
+        },
+        gradeLevel: {
+          levelLabel: 'Grade Level',
+          lexileRange: '700L-900L',
+          overview: standard,
+          keyVocabulary: [{ term: 'Concept', definition: 'An important idea.' }],
+          mainContent: standard,
+          activities: [{ title: 'Practice', instructions: 'Explain the idea in your own words.', estimatedMinutes: 10 }],
+          quiz: Array.from({ length: 5 }, (_, index) => ({
+            question: `Check ${index + 1}: Which answer best matches the lesson goal?`,
+            options: ['A) The core concept', 'B) An unrelated detail', 'C) A distraction', 'D) No answer'],
+            correctAnswer: 'A',
+            explanation: 'The core concept matches the lesson goal.',
+          })),
+        },
+        advanced: {
+          levelLabel: 'Advanced',
+          lexileRange: '1000L-1200L',
+          overview: standard,
+          keyVocabulary: [{ term: 'Analysis', definition: 'Careful study of an idea.' }],
+          mainContent: standard,
+          activities: [{ title: 'Extend', instructions: 'Connect this idea to a new example.', estimatedMinutes: 12 }],
+          quiz: Array.from({ length: 5 }, (_, index) => ({
+            question: `Check ${index + 1}: How can you extend this concept?`,
+            options: ['A) Apply it to a new case', 'B) Ignore the evidence', 'C) Change the topic', 'D) Skip it'],
+            correctAnswer: 'A',
+            explanation: 'Applying it to a new case extends the concept.',
+          })),
+        },
+      },
+    });
+    if (!lesson) return res.status(403).json({ error: 'Class not found or access denied' });
+    return res.status(202).json({ lessonId: lesson.id });
   }
 
   const cls = await prisma.class.findFirst({
@@ -86,6 +153,20 @@ router.patch('/:id', requireTeacher, async (req, res) => {
 // ─── POST /api/lessons/:id/publish ────────────────────────────────────────────
 router.post('/:id/publish', requireTeacher, async (req, res) => {
   try {
+    if (demoStore.isDemoStoreEnabled()) {
+      const lesson = demoStore.publishLesson({ lessonId: req.params.id, teacherId: req.auth?.userId || req.user?.id });
+      if (lesson === null) return res.status(404).json({ error: 'Lesson not found' });
+      if (lesson === false) return res.status(403).json({ error: 'Lesson not found or not yours' });
+      return res.json({
+        lesson: {
+          id: lesson.id,
+          title: lesson.title,
+          status: lesson.status,
+          publishedAt: lesson.publishedAt,
+        },
+      });
+    }
+
     const { lesson } = await assertLessonAccess({
       lessonId: req.params.id,
       userId: req.auth?.userId || req.user?.id,
@@ -116,6 +197,20 @@ router.post('/:id/publish', requireTeacher, async (req, res) => {
 // ─── POST /api/lessons/:id/unpublish ──────────────────────────────────────────
 router.post('/:id/unpublish', requireTeacher, async (req, res) => {
   try {
+    if (demoStore.isDemoStoreEnabled()) {
+      const lesson = demoStore.unpublishLesson({ lessonId: req.params.id, teacherId: req.auth?.userId || req.user?.id });
+      if (lesson === null) return res.status(404).json({ error: 'Lesson not found' });
+      if (lesson === false) return res.status(403).json({ error: 'Lesson not found or not yours' });
+      return res.json({
+        lesson: {
+          id: lesson.id,
+          title: lesson.title,
+          status: lesson.status,
+          publishedAt: lesson.publishedAt,
+        },
+      });
+    }
+
     const { lesson } = await assertLessonAccess({
       lessonId: req.params.id,
       userId: req.auth?.userId || req.user?.id,
@@ -146,6 +241,12 @@ router.post('/:id/unpublish', requireTeacher, async (req, res) => {
 router.delete('/:id', requireTeacher, async (req, res) => {
   try {
     const userId = req.auth?.userId || req.user?.id;
+    if (demoStore.isDemoStoreEnabled()) {
+      const deleted = demoStore.deleteLesson({ lessonId: req.params.id, teacherId: userId });
+      if (!deleted) return res.status(404).json({ error: 'Lesson not found or not yours' });
+      return res.json({ deleted: true, lessonId: req.params.id });
+    }
+
     const lesson = await prisma.lesson.findFirst({
       where: { id: req.params.id, teacherId: userId },
     });
@@ -233,6 +334,13 @@ router.get('/class/:classId', requireAuth, async (req, res) => {
     const { classId } = req.params;
     const userId = req.auth?.userId || req.user?.id;
 
+    if (demoStore.isDemoStoreEnabled()) {
+      const lessons = demoStore.listLessonsForClass({ classId, userId, role: req.user?.role });
+      if (lessons === null) return res.status(404).json({ error: 'Class not found' });
+      if (lessons === false) return res.status(403).json({ error: 'Not enrolled in this class' });
+      return res.json({ lessons });
+    }
+
     const classRecord = await prisma.class.findUnique({ where: { id: classId } });
     if (!classRecord) return res.status(404).json({ error: 'Class not found' });
 
@@ -263,6 +371,63 @@ router.get('/class/:classId', requireAuth, async (req, res) => {
 router.get('/:id', requireAuth, adaptContent, async (req, res) => {
   try {
     if (req.adaptedContent) return res.json(req.adaptedContent);
+
+    if (demoStore.isDemoStoreEnabled()) {
+      const userId = req.auth?.userId || req.user?.id;
+      const role = req.user?.role;
+      const lesson = demoStore.getLesson({
+        lessonId: req.params.id,
+        userId,
+        role,
+      });
+      if (lesson === null) return res.status(404).json({ error: 'Lesson not found' });
+      if (lesson === false) return res.status(403).json({ error: 'Lesson not available' });
+
+      if (role === 'STUDENT') {
+        const profile = demoStore.getProfile(userId);
+        const levelKey = LEVEL_MAP[profile.readingLevel] || 'gradeLevel';
+        const content = lesson[levelKey] || lesson.gradeLevel || lesson.foundational || lesson.advanced;
+        return res.json({
+          id: lesson.id,
+          lessonId: lesson.id,
+          title: lesson.title,
+          standard: lesson.standard,
+          appliedProfile: {
+            readingLevel: profile.readingLevel,
+            diagnosticReadingLevel: profile.diagnosticReadingLevel,
+            diagnosticMathLevel: profile.diagnosticMathLevel,
+            language: profile.language,
+            bandwidthMode: profile.bandwidthMode,
+            preferredContentFormat: profile.preferredContentFormat,
+            recommendedProfilePatch: profile.recommendedProfilePatch,
+            ttsProvider: profile.ttsProvider,
+          },
+          content: {
+            ...content,
+            _a11y: {
+              fontSize: profile.fontSize,
+              highContrast: profile.highContrast,
+              dyslexiaFont: profile.dyslexiaFont,
+              ttsEnabled: profile.ttsEnabled,
+              ttsProvider: profile.ttsProvider,
+              language: profile.language,
+            },
+          },
+        });
+      }
+
+      return res.json({
+        id: lesson.id,
+        title: lesson.title,
+        standard: lesson.standard,
+        status: lesson.status,
+        publishedAt: lesson.publishedAt,
+        foundational: lesson.foundational,
+        gradeLevel: lesson.gradeLevel,
+        advanced: lesson.advanced,
+        createdAt: lesson.createdAt,
+      });
+    }
 
     const { lesson } = await assertLessonAccess({
       lessonId: req.params.id,

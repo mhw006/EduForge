@@ -14,6 +14,7 @@ const prisma = require('../lib/prisma');
 const { requireAuth, requireTeacher } = require('../middleware/auth');
 const { assertLessonAccess } = require('../lib/lesson-access');
 const { isHttpError } = require('../lib/http-error');
+const demoStore = require('../services/demo-store');
 
 const router = express.Router();
 
@@ -35,6 +36,27 @@ router.post('/:lessonId', requireTeacher, async (req, res) => {
   if (!VALID_SECTIONS.includes(section))     return res.status(400).json({ error: `section must be one of ${VALID_SECTIONS.join('|')}` });
   if (!VALID_EDIT_TYPES.includes(editType))  return res.status(400).json({ error: `editType must be one of ${VALID_EDIT_TYPES.join('|')}` });
   if (aiVersion === undefined)               return res.status(400).json({ error: 'aiVersion is required (snapshot of original Claude output)' });
+
+  if (demoStore.isDemoStoreEnabled()) {
+    const charDelta = Math.abs(jsonByteLen(humanVersion) - jsonByteLen(aiVersion));
+    const edit = demoStore.recordEdit({
+      lessonId: req.params.lessonId,
+      teacherId,
+      level,
+      section,
+      editType,
+      aiVersion,
+      humanVersion,
+      charDelta,
+    });
+    if (!edit) return res.status(404).json({ error: 'Lesson not found or not yours' });
+    return res.status(201).json({
+      id: edit.id,
+      editType: edit.editType,
+      charDelta: edit.charDelta,
+      createdAt: edit.createdAt,
+    });
+  }
 
   try {
     await assertLessonAccess({

@@ -4,6 +4,7 @@ const router = express.Router();
 const prisma = require('../lib/prisma');
 const { requireTeacher } = require('../middleware/auth');
 const { generateLesson } = require('../services/lessonforge');
+const demoStore = require('../services/demo-store');
 
 const generationCache = new Map();
 const inflightGenerations = new Map();
@@ -120,6 +121,28 @@ router.post('/save', requireTeacher, async (req, res) => {
   try {
     const teacherId = req.auth?.userId || req.user?.id;
     let targetClassId = classId;
+
+    if (demoStore.isDemoStoreEnabled()) {
+      const saved = demoStore.saveLesson({
+        classId,
+        className,
+        title,
+        standard,
+        lesson,
+        teacherId,
+      });
+      if (!saved) return res.status(403).json({ error: 'Class not found or access denied' });
+      return res.status(201).json({
+        lesson: {
+          id: saved.id,
+          classId: saved.classId,
+          title: saved.title,
+          status: saved.status,
+          publishedAt: saved.publishedAt,
+          createdAt: saved.createdAt,
+        },
+      });
+    }
 
     if (targetClassId) {
       const found = await prisma.class.findFirst({

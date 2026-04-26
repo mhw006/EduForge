@@ -11,6 +11,7 @@ const {
   determineReadingLevelFromScore,
   buildAdaptationReason,
 } = require('../services/diagnostics');
+const demoStore = require('../services/demo-store');
 
 const router = express.Router();
 
@@ -96,6 +97,15 @@ router.post('/domains/:domain/submit', protect, requireStudent, async (req, res)
 router.get('/me/summary', protect, requireStudent, async (req, res) => {
   try {
     const userId = req.auth.userId;
+    if (demoStore.isDemoStoreEnabled()) {
+      return res.json({
+        latestReading: null,
+        latestMath: null,
+        latestScience: null,
+        totalAttempts: 0,
+      });
+    }
+
     const attempts = await prisma.diagnosticAttempt.findMany({
       where: { userId },
       orderBy: { completedAt: 'desc' },
@@ -312,6 +322,12 @@ router.get('/:lessonId', protect, async (req, res) => {
     const userId = req.auth.userId;
     const isDemoUser = userId.startsWith('demo_');
 
+    if (demoStore.isDemoStoreEnabled()) {
+      const lesson = demoStore.getLesson({ lessonId, userId, role: req.user?.role });
+      const { title, questions } = buildDiagnosticFromLesson(lesson && lesson !== false ? lesson : null);
+      return res.json({ lessonId, title, questions: getPublicQuestions(questions) });
+    }
+
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
       select: { id: true, title: true, classId: true, gradeLevel: true, status: true },
@@ -357,6 +373,31 @@ router.post('/:lessonId/submit', protect, async (req, res) => {
 
     if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
       return res.status(400).json({ error: 'answers must be an object mapping question id to option letter' });
+    }
+
+    if (demoStore.isDemoStoreEnabled()) {
+      const lesson = demoStore.getLesson({ lessonId, userId, role: req.user?.role });
+      const { questions } = buildDiagnosticFromLesson(lesson && lesson !== false ? lesson : null);
+      const { score, totalQuestions, skillsMissed } = scoreLessonDiagnostic(questions, answers);
+      const newReadingLevel = determineReadingLevelFromScore(score, totalQuestions);
+      const previousReadingLevel = demoStore.getProfile(userId).readingLevel;
+      demoStore.updateProfile(userId, {
+        readingLevel: newReadingLevel,
+        diagnosticReadingLevel: newReadingLevel,
+      });
+      const adaptationReason = buildAdaptationReason({ score, totalQuestions, newReadingLevel, skillsMissed });
+      return res.json({
+        lessonId,
+        score,
+        totalQuestions,
+        previousReadingLevel,
+        newReadingLevel,
+        skillsMissed,
+        adaptationReason,
+        nextAction: newReadingLevel !== previousReadingLevel
+          ? 'Your lesson has been updated. Scroll down to see the adapted content.'
+          : 'Your current reading level is a great fit. Keep going!',
+      });
     }
 
     // Load lesson to reconstruct the answer key
