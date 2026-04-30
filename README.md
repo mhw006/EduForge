@@ -1,6 +1,8 @@
 # EduForge - LA Hacks 2026 (Light the Way Presented by Aramco)
 
-EduForge is an AI-powered lesson generation and student adaptation platform that closes a full learning data flywheel — from curriculum standard to differentiated lesson, real-time student adaptation, engagement tracking, diagnostic placement, and AI-ranked teacher recommendations. Every interaction feeds back into smarter generation and more equitable delivery.
+EduForge is an AI-powered lesson generation and student adaptation platform that drives a full learning data flywheel — from curriculum standard to differentiated lesson, real-time student adaptation, engagement tracking, diagnostic placement, and AI-ranked teacher recommendations. Every interaction feeds back into smarter generation and more equitable delivery.
+
+**Live demo: [edu-forge-theta.vercel.app](https://edu-forge-theta.vercel.app/)**
 
 ## Team
 
